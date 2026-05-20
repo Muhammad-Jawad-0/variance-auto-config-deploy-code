@@ -1,0 +1,119 @@
+<div class="variance-configurator" id="variance-configurator" data-api-base="/apps/variance">
+  <div class="variance-shell">
+    <!-- Brand Section -->
+    <div class="selection-card" id="brand-section">
+      <label class="selection-label">
+        <span class="label-step">01</span>
+        Select Brand
+      </label>
+      <div class="select-wrap">
+        <select id="brand-select" disabled>
+          <option value="">Loading brands...</option>
+        </select>
+        <span class="select-arrow">▾</span>
+      </div>
+    </div>
+
+    <!-- Model Section (Dropdown) -->
+    <div class="selection-card hidden" id="model-section">
+      <label class="selection-label">
+        <span class="label-step">02</span>
+        Select Model
+      </label>
+      <div class="select-wrap">
+        <select id="model-select" class="modern-select" disabled>
+          <option value="">Choose a model</option>
+        </select>
+        <span class="select-arrow">▾</span>
+      </div>
+      <!-- Selected model image will show here -->
+      <div id="model-image-preview" class="model-image-preview hidden">
+        <img id="selected-model-img" width="100%" height="100%" src="" alt="Selected model">
+      </div>
+    </div>
+
+    <!-- Declinaison Section (Year/Trim) -->
+    <div class="selection-card hidden" id="declinaison-section">
+      <label class="selection-label">
+        <span class="label-step">03</span>
+        Select Year / Trim
+      </label>
+      <div id="declinaison-list" class="tile-grid"></div>
+    </div>
+
+    <!-- Kit Section -->
+    <div class="selection-card hidden" id="kit-section">
+      <label class="selection-label">
+        <span class="label-step">04</span>
+        Select Window Kit
+      </label>
+      <div id="kit-list" class="tile-grid"></div>
+    </div>
+
+    <!-- Tint Section -->
+    <div class="selection-card hidden" id="tint-section">
+      <label class="selection-label">
+        <span class="label-step">05</span>
+        Select Tint Film
+      </label>
+      <div class="select-wrap">
+        <select id="film-select" class="modern-select" disabled>
+          <option value="">Choose a tint</option>
+        </select>
+        <span class="select-arrow">▾</span>
+      </div>
+    </div>
+
+    <!-- Result Section -->
+    <div id="result-box" class="result-card hidden">
+      <div class="result-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <h3>Your Selection Summary</h3>
+      </div>
+      <div id="result-content"></div>
+      <div id="tech-sheet-link" class="tech-sheet-btn"></div>
+      <button id="add-to-cart-btn" class="add-to-cart-btn hidden">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V16.5M17 16.5C17 17.9 15.9 19 14.5 19C13.1 19 12 17.9 12 16.5C12 15.1 13.1 14 14.5 14C15.9 14 17 15.1 17 16.5ZM9 16.5C9 17.9 7.9 19 6.5 19C5.1 19 4 17.9 4 16.5C4 15.1 5.1 14 6.5 14C7.9 14 9 15.1 9 16.5Z" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        Add to Cart
+      </button>
+    </div>Your Selection Summary
+  </div>
+</div>
+
+<script>
+  window.VarianceConfig = {
+    {% comment %} productId: {{ product.variants.first.id }}, {% endcomment %}
+    productId: {{ product.id | json }},
+    productPrice: {{ product.price | divided_by: 100.00 | json }},
+    storeLanguage: "{{ localization.language.iso_code }}"
+  };
+  // Shopify injects shop domain automatically, but we can also set explicitly
+  window.Shopify = window.Shopify || {};
+  window.Shopify.shop = "{{ shop.permanent_domain }}";
+</script>
+{% schema %}
+{
+  "name": "Variance Configuratorrr",
+  "target": "section",
+  "stylesheet": "style.css",
+  "javascript": "script.js",
+  "settings": []
+}
+{% endschema %}
+
+{%- for property in item.properties -%}
+  {%- unless property.last == blank -%}
+    <div class="cart-item__property">
+      <strong>{{ property.first | replace: '_', ' ' | capitalize }}:</strong>
+      {% if property.first == '_technical_sheet' %}
+        <a href="{{ property.last }}" target="_blank">View PDF</a>
+      {% else %}
+        {{ property.last }}
+      {% endif %}
+    </div>
+  {%- endunless -%}
+{%- endfor -%}
