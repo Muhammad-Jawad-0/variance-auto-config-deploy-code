@@ -1,6 +1,6 @@
 import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
-import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
+import { CustomSQLiteSessionStorage } from "./utils/session-storage.js";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
 const DB_PATH = `${process.cwd()}/database.sqlite`;
@@ -34,8 +34,75 @@ const shopify = shopifyApp({
   webhooks: {
     path: "/api/webhooks",
   },
-  // This should be replaced with your preferred storage strategy
-  sessionStorage: new SQLiteSessionStorage(DB_PATH),
+// Use our custom SQLite storage wrapper which handles expiring tokens and migrations
+  sessionStorage: new CustomSQLiteSessionStorage(DB_PATH),
 });
+
+// Wrap Graphql client to intercept 401 Unauthorized errors, force refresh, and retry once
+const originalGraphqlClient = shopify.api.clients.Graphql;
+class WrappedGraphqlClient extends originalGraphqlClient {
+  constructor(params) {
+    super(params);
+    this.session = params.session;
+    this.apiVersion = params.apiVersion;
+  }
+
+  async query(params) {
+    try {
+      return await super.query(params);
+    } catch (error) {
+      if (this.isUnauthorized(error)) {
+        console.warn(`[Shopify Client Retry] Detected 401 on query for shop: ${this.session.shop}. Attempting force refresh.`);
+        // Reloading session through our custom storage triggers automatic background refresh if expired
+        const freshSession = await shopify.config.sessionStorage.loadSession(this.session.id);
+        if (freshSession) {
+          // Re-instantiate internal client with new access token
+          const tempClient = new originalGraphqlClient({
+            session: freshSession,
+            apiVersion: this.apiVersion
+          });
+          this.client = tempClient.client;
+          this.session = freshSession;
+          console.log('[Shopify Client Retry] Client re-created with fresh token. Retrying query...');
+          return await super.query(params);
+        }
+      }
+      throw error;
+    }
+  }
+
+  async request(operation, options) {
+    try {
+      return await super.request(operation, options);
+    } catch (error) {
+      if (this.isUnauthorized(error)) {
+        console.warn(`[Shopify Client Retry] Detected 401 on request for shop: ${this.session.shop}. Attempting force refresh.`);
+        const freshSession = await shopify.config.sessionStorage.loadSession(this.session.id);
+        if (freshSession) {
+          const tempClient = new originalGraphqlClient({
+            session: freshSession,
+            apiVersion: this.apiVersion
+          });
+          this.client = tempClient.client;
+          this.session = freshSession;
+          console.log('[Shopify Client Retry] Client re-created with fresh token. Retrying request...');
+          return await super.request(operation, options);
+        }
+      }
+      throw error;
+    }
+  }
+
+  isUnauthorized(error) {
+    const statusCode = error.response?.code || error.response?.status || error.status || 0;
+    return (
+      statusCode === 401 ||
+      error.message?.includes('401') ||
+      (error.body && error.body.errors && error.body.errors.some(e => e.message?.includes('401') || e.message?.toLowerCase().includes('unauthorized')))
+    );
+  }
+}
+
+shopify.api.clients.Graphql = WrappedGraphqlClient;
 
 export default shopify;
