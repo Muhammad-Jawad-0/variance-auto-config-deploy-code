@@ -4,7 +4,6 @@ import ConfigModel from "../model/ConfigModel.js";
 export async function getAllStoreProducts(req, res) {
   try {
     const session = res.locals.shopify.session;
-
     if (!session) {
       throw new Error("Shopify session is required");
     }
@@ -56,64 +55,60 @@ export async function getAllStoreProducts(req, res) {
 
     const variables = { first: 250 };
 
-    // ✅ Use the query method, not request
+    // ✅ Ye sahi hai - client.query() with data object
     const response = await client.query({
-      data: { query, variables },
+      data: {
+        query: query,
+        variables: variables,
+      },
     });
 
-    // Check for GraphQL errors inside the body
-    if (response?.body?.errors) {
-      console.error("GraphQL Errors:", response.body.errors);
-      throw new Error(response.body.errors[0]?.message || "Shopify GraphQL error");
+    // Debug: Poora response structure dekho
+    console.log("Response keys:", Object.keys(response));
+    console.log("Response body keys:", Object.keys(response.body || {}));
+    console.log("Response data keys:", Object.keys(response.data || {}));
+
+    // Check errors - dono jagah ho sakta hai
+    const errors = response.body?.errors || response.errors;
+    if (errors) {
+      console.error("GraphQL Errors:", JSON.stringify(errors));
+      throw new Error(errors[0]?.message || "Shopify GraphQL error");
     }
 
-    const productsData = response?.body?.data?.products;
-
+    // Products data - dono jagah check karo
+    const productsData = response.body?.data?.products || response.data?.products;
+    
     if (!productsData) {
-      console.error("❌ INVALID SHOPIFY RESPONSE:", response?.body);
+      console.error("❌ Full response:", JSON.stringify(response).substring(0, 500));
       throw new Error("Invalid response from Shopify when fetching products");
     }
 
-    // Transform products to your frontend‑friendly format
-    const products = productsData.edges.map(edge => {
+    const products = productsData.edges.map((edge) => {
       const product = edge.node;
-      const productId = product.id.split('/').pop();
-
+      const productId = product.id.split("/").pop();
       return {
         id: productId,
-        title: product.title || '',
-        vendor: product.vendor || '',
-        productType: product.productType || 'N/A',
-        sku: product.variants?.edges?.[0]?.node?.sku || '',
+        title: product.title || "",
+        vendor: product.vendor || "",
+        productType: product.productType || "N/A",
+        sku: product.variants?.edges?.[0]?.node?.sku || "",
         image: product.images?.edges?.[0]?.node?.url || null,
-        status: product.status || 'DRAFT',
+        status: product.status || "DRAFT",
         price: parseFloat(
           product.variants?.edges?.[0]?.node?.price ||
-          product.priceRange?.minVariantPrice?.amount ||
-          0
+            product.priceRange?.minVariantPrice?.amount ||
+            0
         ),
       };
     });
 
-    // Fetch already selected product IDs from the DB
     const config = await ConfigModel.findOne({ shop: shopDomain });
     const selectedProductIds = config?.productIds || [];
 
-    res.json({
-      success: true,
-      products,
-      total: products.length,
-      selectedProductIds,
-    });
+    res.json({ success: true, products, total: products.length, selectedProductIds });
   } catch (error) {
-    console.error("🔥 FULL ERROR:", error);
-    if (error.response) console.error("Shopify response object:", error.response);
-    if (error.body) console.error("Shopify body:", error.body);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    console.error("🔥 getAllStoreProducts error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
@@ -139,28 +134,6 @@ export async function saveProductId(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
-
-// Check if product should show extension
-// export async function checkProductExtension(req, res) {
-//   try {
-//     const { productId } = req.query;
-//     const session = res.locals.shopify.session;
-//     const shopDomain = session.shop
-
-//     const config = await ConfigModel.findOne({ shop: shopDomain });
-//     const isAllowed = config?.productIds?.includes(productId?.toString());
-
-//     res.json({
-//       success: true,
-//       allowed: isAllowed || false
-//     });
-
-//   } catch (error) {
-//     console.error("Check error:", error);
-//     res.status(500).json({ success: false, allowed: false });
-//   }
-// }
-
 
 export async function checkProductExtension(req, res) {
   try {
