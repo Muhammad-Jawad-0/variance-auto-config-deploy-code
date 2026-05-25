@@ -1,6 +1,7 @@
 import shopify from "../shopify.js";
 import ConfigModel from "../model/ConfigModel.js";
 
+// ✅ Updated controller with pagination loop
 export async function getAllStoreProducts(req, res) {
   try {
     const session = res.locals.shopify.session;
@@ -12,8 +13,8 @@ export async function getAllStoreProducts(req, res) {
     const client = new shopify.api.clients.Graphql({ session });
 
     const query = `
-      query GetProducts($first: Int!) {
-        products(first: $first, sortKey: TITLE) {
+      query GetProducts($first: Int!, $after: String) {
+        products(first: $first, after: $after, sortKey: TITLE) {
           edges {
             node {
               id
@@ -53,59 +54,60 @@ export async function getAllStoreProducts(req, res) {
       }
     `;
 
-    const variables = { first: 250 };
+    let allProducts = [];
+    let hasNextPage = true;
+    let endCursor = null;
+    const PAGE_SIZE = 250;
+    let pageCount = 0;
 
-    // ✅ Ye sahi hai - client.query() with data object
-    const response = await client.query({
-      data: {
-        query: query,
-        variables: variables,
-      },
-    });
+    while (hasNextPage) {
+      pageCount++;
+      console.log(`📦 Fetching page ${pageCount}...`);
+      
+      const variables = { first: PAGE_SIZE, after: endCursor };
+      const response = await client.query({
+        data: { query, variables },
+      });
 
-    // Debug: Poora response structure dekho
-    console.log("Response keys:", Object.keys(response));
-    console.log("Response body keys:", Object.keys(response.body || {}));
-    console.log("Response data keys:", Object.keys(response.data || {}));
+      const errors = response.body?.errors || response.errors;
+      if (errors) {
+        throw new Error(errors[0]?.message || "GraphQL error");
+      }
 
-    // Check errors - dono jagah ho sakta hai
-    const errors = response.body?.errors || response.errors;
-    if (errors) {
-      console.error("GraphQL Errors:", JSON.stringify(errors));
-      throw new Error(errors[0]?.message || "Shopify GraphQL error");
+      const productsData = response.body?.data?.products || response.data?.products;
+      if (!productsData) {
+        throw new Error("Invalid response from Shopify");
+      }
+
+      const currentProducts = productsData.edges.map((edge) => {
+        const product = edge.node;
+        const productId = product.id.split("/").pop();
+        return {
+          id: productId,
+          title: product.title || "",
+          vendor: product.vendor || "",
+          productType: product.productType || "N/A",
+          sku: product.variants?.edges?.[0]?.node?.sku || "",
+          image: product.images?.edges?.[0]?.node?.url || null,
+          status: product.status || "DRAFT",
+          price: parseFloat(
+            product.variants?.edges?.[0]?.node?.price ||
+              product.priceRange?.minVariantPrice?.amount || 0
+          ),
+        };
+      });
+
+      allProducts = [...allProducts, ...currentProducts];
+      hasNextPage = productsData.pageInfo.hasNextPage;
+      endCursor = productsData.pageInfo.endCursor;
     }
 
-    // Products data - dono jagah check karo
-    const productsData = response.body?.data?.products || response.data?.products;
-    
-    if (!productsData) {
-      console.error("❌ Full response:", JSON.stringify(response).substring(0, 500));
-      throw new Error("Invalid response from Shopify when fetching products");
-    }
-
-    const products = productsData.edges.map((edge) => {
-      const product = edge.node;
-      const productId = product.id.split("/").pop();
-      return {
-        id: productId,
-        title: product.title || "",
-        vendor: product.vendor || "",
-        productType: product.productType || "N/A",
-        sku: product.variants?.edges?.[0]?.node?.sku || "",
-        image: product.images?.edges?.[0]?.node?.url || null,
-        status: product.status || "DRAFT",
-        price: parseFloat(
-          product.variants?.edges?.[0]?.node?.price ||
-            product.priceRange?.minVariantPrice?.amount ||
-            0
-        ),
-      };
-    });
+    console.log(`✅ Fetched ${allProducts.length} products in ${pageCount} pages`);
 
     const config = await ConfigModel.findOne({ shop: shopDomain });
     const selectedProductIds = config?.productIds || [];
 
-    res.json({ success: true, products, total: products.length, selectedProductIds });
+    res.json({ success: true, products: allProducts, total: allProducts.length, selectedProductIds });
   } catch (error) {
     console.error("🔥 getAllStoreProducts error:", error.message);
     res.status(500).json({ success: false, error: error.message });
