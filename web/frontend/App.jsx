@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { NavMenu } from "@shopify/app-bridge-react";
 import Routes from "./Routes";
 import Configurator from "./pages/Configurator";
+import DecoupeConfigurator from "./pages/DecoupeConfigurator";
 import { ToastContainer } from 'react-toastify';
 
 import { QueryProvider, PolarisProvider } from "./components";
@@ -22,6 +23,7 @@ export default function App() {
           <NavMenu>
             <Link to="/" rel="home" />
             <Link to="/configurator" element={<Configurator />}>Configurator</Link>
+            <Link to="/decoupeConfigurator" element={<DecoupeConfigurator />}>Variance Cut Configurator</Link>
             {/* <a href="/pagename">{t("NavigationMenu.pageName")}</a> */}
           </NavMenu>
           <Routes pages={pages} />

@@ -9,6 +9,7 @@ import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import VarianceRouter from "./routes/variance.route.js";
 import ConfiguratorRoute from "./routes/StoreProducts.route.js";
+import DecoupeRoute from "./routes/decoupe.route.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -73,7 +74,7 @@ app.get("/api/products/count", async (_req, res) => {
   res.status(200).send({ count: countData.data.productsCount.count });
 });
 
-const routes = [VarianceRouter, ConfiguratorRoute];
+const routes = [VarianceRouter, ConfiguratorRoute, DecoupeRoute];
 
 routes.forEach((route) => {
   app.use("/api", route);

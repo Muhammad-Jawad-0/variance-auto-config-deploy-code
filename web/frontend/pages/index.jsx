@@ -39,6 +39,11 @@ export default function HomePage() {
             </button>
           </div>
           <div>
+            <button style={{ background: "#ca820f", marginBottom: "5px" }} className="cta-btn" onClick={() => navigate("/decoupeConfigurator")}>
+              View Configurator
+            </button>
+          </div>
+          <div>
 
             <button className="cta-btn" onClick={() => setShowModal(true)}>
               View Demo

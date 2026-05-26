@@ -1,0 +1,329 @@
+/* Custom Decoupe Configurator Stylesheet - Compact Version */
+:root {
+  --decoupe-primary: #ff7a00;
+  --decoupe-primary-hover: #e06b00;
+  --decoupe-dark: #1a1a1a;
+  --decoupe-light-bg: #f8f9fa;
+  --decoupe-border: #e2e8f0;
+  --decoupe-text: #334155;
+  --decoupe-text-light: #64748b;
+  --decoupe-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --decoupe-radius: 8px;
+}
+
+.variance-decoupe-configurator {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  max-width: 1000px;
+  margin: 15px auto;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: var(--decoupe-radius);
+  border: 1px solid var(--decoupe-border);
+  box-shadow: var(--decoupe-shadow);
+  color: var(--decoupe-text);
+}
+
+.decoupe-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .decoupe-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+/* Left Column: Preview Pane */
+.decoupe-preview-pane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--decoupe-light-bg);
+  border-radius: var(--decoupe-radius);
+  border: 1px solid var(--decoupe-border);
+  padding: 0;  /* pehle 20px tha */
+  position: relative;
+  min-height: 300px;
+  overflow: hidden;
+}
+
+.preview-image-wrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--decoupe-light-bg);
+}
+
+#decoupe-preview-img {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  object-fit: cover;  /* cover — poori jagah bhar dega, contain — chota rakhega */
+  border-radius: 8px;
+}
+
+.preview-placeholder {
+  text-align: center;
+  color: var(--decoupe-text-light);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+}
+
+.preview-placeholder span {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.preview-placeholder p {
+  font-size: 12px;
+  margin: 0;
+}
+
+/* Right Column: Controls */
+.decoupe-control-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.decoupe-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--decoupe-dark);
+}
+
+.decoupe-field-group {
+  margin-bottom: 10px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--decoupe-dark);
+}
+
+.decoupe-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.decoupe-select-wrapper select {
+  width: 100%;
+  padding: 8px 28px 8px 10px;
+  font-size: 13px;
+  color: var(--decoupe-text);
+  background-color: #ffffff;
+  border: 1px solid var(--decoupe-border);
+  border-radius: 6px;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.decoupe-select-wrapper select:focus {
+  border-color: var(--decoupe-primary);
+  box-shadow: 0 0 0 2px rgba(255, 122, 0, 0.1);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--decoupe-text-light);
+  pointer-events: none;
+}
+
+/* Detail Card */
+.decoupe-detail-card {
+  border-top: 1px solid var(--decoupe-border);
+  padding-top: 10px;
+  margin-top: 5px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Info Grid */
+.decoupe-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+  background: var(--decoupe-light-bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+@media (min-width: 480px) {
+  .decoupe-info-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.02);
+  padding-bottom: 4px;
+}
+
+.info-label {
+  font-weight: 600;
+  color: var(--decoupe-text-light);
+  font-size: 11px;
+}
+
+.info-value {
+  color: var(--decoupe-dark);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+/* Description */
+.decoupe-description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--decoupe-text);
+  margin: 0;
+  padding: 8px 0;
+}
+
+/* Length input */
+.length-input-wrapper {
+  display: flex;
+  position: relative;
+  align-items: center;
+}
+
+.length-input-wrapper input {
+  width: 100%;
+  padding: 6px 50px 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--decoupe-border);
+  border-radius: 6px;
+  outline: none;
+  font-weight: 500;
+}
+
+.length-input-wrapper input:focus {
+  border-color: var(--decoupe-primary);
+  box-shadow: 0 0 0 2px rgba(255, 122, 0, 0.1);
+}
+
+.unit-badge {
+  position: absolute;
+  right: 10px;
+  font-weight: 600;
+  color: var(--decoupe-text-light);
+  font-size: 11px;
+}
+
+/* Pricing Card */
+.decoupe-pricing-card {
+  background: #fff8f2;
+  border: 1px solid #ffe5d0;
+  border-radius: var(--decoupe-radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.price-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--decoupe-text-light);
+  margin-bottom: 5px;
+}
+
+.total-price-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed #ffe5d0;
+  padding-top: 6px;
+}
+
+.total-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--decoupe-dark);
+}
+
+.total-price-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--decoupe-primary);
+}
+
+/* Add to Cart Button */
+.decoupe-add-to-cart-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--decoupe-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.decoupe-add-to-cart-btn:hover {
+  background: var(--decoupe-primary-hover);
+}
+
+.decoupe-add-to-cart-btn:active {
+  transform: scale(0.98);
+}
+
+.decoupe-add-to-cart-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Utilities */
+.hidden {
+  display: none !important;
+}
+
+.preview-spinner,
+.detail-loader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--decoupe-text-light);
+  font-size: 12px;
+}
