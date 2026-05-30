@@ -19,92 +19,159 @@ class VarianceConfigurator {
         this.cacheElements();
         await this.loadBrands();
         this.bindEvents();
+        this.setInitialUI();
     }
 
     getCurrentLang() {
         return window.VarianceConfig?.storeLanguage || 'en';
     }
 
-    async translateHeading() {
-        const headingEl = document.querySelector('#result-box .result-header h3');
-        if (!headingEl) return;
-
-        const originalText = "Your Selection Summary";
+    async translateStaticText(text, key) {
+        if (!this._staticCache) this._staticCache = {};
         const lang = this.getCurrentLang();
-
-        if (lang === 'en') {
-            headingEl.textContent = originalText;
-            return;
-        }
-
-        // Check cache
-        if (!this._headingCache) this._headingCache = {};
-        if (this._headingCache[lang]) {
-            headingEl.textContent = this._headingCache[lang];
-            return;
-        }
+        if (lang === 'en') return text;
+        if (this._staticCache[key]) return this._staticCache[key];
 
         try {
             const res = await fetch('/apps/customizer/translate-text', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: originalText, lang })
-            });
-            const data = await res.json();
-            const translated = data.translated || originalText;
-            this._headingCache[lang] = translated;
-            headingEl.textContent = translated;
-        } catch (err) {
-            console.error("Heading translation failed:", err);
-            headingEl.textContent = originalText;
-        }
-    }
-
-    // Cache for translated static texts
-    async translateStaticText(text, key) {
-        if (!this._staticCache) this._staticCache = {};
-        const lang = this.getCurrentLang();
-
-        // English mein translate nahi karna
-        if (lang === 'en') return text;
-
-        // Cache check
-        if (this._staticCache[key]) return this._staticCache[key];
-
-        try {
-            const response = await fetch('/apps/customizer/translate-text', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, lang })
             });
-            const data = await response.json();
-            const translated = data.translated || text;
-            this._staticCache[key] = translated;
-            return translated;
-        } catch (error) {
-            console.error(`Translation failed for ${key}:`, error);
+            const data = await res.json();
+            this._staticCache[key] = data.translated || text;
+            return this._staticCache[key];
+        } catch (err) {
+            console.error(`Translation failed for ${key}:`, err);
             return text;
         }
     }
 
-    async translateHeading() {
-        const headingEl = document.querySelector('#result-box .result-header h3');
-        if (!headingEl) return;
+    async translateAllStaticTexts() {
+        // Show rotating spinner (no text) during translation
+        const stepTexts = document.querySelectorAll('.step-text');
+        stepTexts.forEach((el, idx) => {
+            el.textContent = '⏳';
+            // Steps 1,2,5 ko rotating, steps 3 aur 4 ko static (index 2 and 3)
+            if (idx !== 2 && idx !== 3) {
+                el.classList.add('rotating');
+            }
+        });
 
-        const translated = await this.translateStaticText("Your Selection Summary", "heading");
-        headingEl.textContent = translated;
+        const brandTrigger = document.querySelector('.custom-select-trigger span:first-child');
+        if (brandTrigger) {
+            brandTrigger.textContent = '⏳';
+            brandTrigger.classList.add('rotating');
+        }
+
+        const modelSelect = this.elements.modelSelect;
+        if (modelSelect && modelSelect.options[0]) {
+            modelSelect.options[0].text = '⏳';
+            modelSelect.options[0].classList.add('rotating');
+        }
+
+        const filmSelect = this.elements.filmSelect;
+        if (filmSelect && filmSelect.options[0]) {
+            filmSelect.options[0].text = '⏳';
+            filmSelect.options[0].classList.add('rotating');
+        }
+
+        const placeholderDiv = document.getElementById('result-placeholder');
+        if (placeholderDiv) {
+            placeholderDiv.innerHTML = `<p class="rotating">⏳</p>`;
+        }
+
+        const btn = this.elements.addToCartBtn;
+        if (btn) {
+            const svg = btn.querySelector('svg');
+            btn.innerHTML = '';
+            if (svg) btn.appendChild(svg);
+            const spinnerSpan = document.createElement('span');
+            spinnerSpan.textContent = '⏳';
+            spinnerSpan.classList.add('rotating');
+            btn.appendChild(spinnerSpan);
+            btn.disabled = true;
+        }
+
+        // Fetch translations
+        const translations = {
+            step1: await this.translateStaticText("Select Brand", "step1"),
+            step2: await this.translateStaticText("Select Model", "step2"),
+            step3: await this.translateStaticText("Select Year / Trim", "step3"),
+            step4: await this.translateStaticText("Select Window Kit", "step4"),
+            step5: await this.translateStaticText("Select Tint Film", "step5"),
+            chooseBrand: await this.translateStaticText("Choose a brand", "chooseBrand"),
+            chooseModel: await this.translateStaticText("Choose a model", "chooseModel"),
+            chooseTint: await this.translateStaticText("Choose a tint", "chooseTint"),
+            loadingBrands: await this.translateStaticText("Loading brands...", "loadingBrands"),
+            loadingModels: await this.translateStaticText("Loading models...", "loadingModels"),
+            loadingOptions: await this.translateStaticText("Loading options...", "loadingOptions"),
+            loadingTints: await this.translateStaticText("Loading tints...", "loadingTints"),
+            pleaseSelectFirst: await this.translateStaticText("Please make a selection first", "pleaseSelectFirst"),
+            addToCart: await this.translateStaticText("Add to Cart", "addToCart"),
+            ref: await this.translateStaticText("Ref:", "ref"),
+            uv: await this.translateStaticText("UV", "uv"),
+            solar: await this.translateStaticText("Solar", "solar"),
+            light: await this.translateStaticText("Light", "light"),
+            techSheet: await this.translateStaticText("Technical Sheet", "techSheet"),
+            noPDF: await this.translateStaticText("No PDF", "noPDF")
+        };
+        this.translations = translations;
+
+        // Apply translated texts (remove spinner)
+        stepTexts.forEach((el, idx) => {
+            const keys = ['step1', 'step2', 'step3', 'step4', 'step5'];
+            if (idx < keys.length) {
+                el.textContent = translations[keys[idx]];
+                el.classList.remove('rotating');
+            }
+        });
+
+        if (brandTrigger) {
+            brandTrigger.textContent = translations.chooseBrand;
+            brandTrigger.classList.remove('rotating');
+        }
+
+        if (modelSelect && modelSelect.options[0]) {
+            modelSelect.options[0].text = translations.chooseModel;
+            modelSelect.options[0].classList.remove('rotating');
+        }
+
+        if (filmSelect && filmSelect.options[0]) {
+            filmSelect.options[0].text = translations.chooseTint;
+            filmSelect.options[0].classList.remove('rotating');
+        }
+
+        if (placeholderDiv) {
+            placeholderDiv.innerHTML = `<p>🔍 ${translations.pleaseSelectFirst}</p>`;
+        }
+
+        if (btn) {
+            const svg = btn.querySelector('svg');
+            btn.innerHTML = '';
+            if (svg) btn.appendChild(svg);
+            btn.appendChild(document.createTextNode(' ' + translations.addToCart));
+            btn.disabled = true;
+        }
     }
 
     async translateButton() {
         const btn = this.elements.addToCartBtn;
         if (!btn) return;
-
+        const translated = this.translations?.addToCart || await this.translateStaticText("Add to Cart", "addToCart");
         const svg = btn.querySelector('svg');
-        const translatedText = await this.translateStaticText("Add to Cart", "button");
-
         btn.innerHTML = '';
         if (svg) btn.appendChild(svg);
-        btn.appendChild(document.createTextNode(' ' + translatedText));
+        btn.appendChild(document.createTextNode(' ' + translated));
+    }
+
+    setInitialUI() {
+        this.elements.addToCartBtn.disabled = true;
+        if (this.elements.resultContent) {
+            this.elements.resultContent.classList.add('hidden');
+        }
+        const placeholder = document.getElementById('result-placeholder');
+        if (placeholder) placeholder.classList.remove('hidden');
     }
 
     cacheElements() {
@@ -126,21 +193,19 @@ class VarianceConfigurator {
             techSheetLink: document.getElementById('tech-sheet-link'),
             addToCartBtn: document.getElementById('add-to-cart-btn')
         };
+        this.resultPlaceholder = document.getElementById('result-placeholder');
     }
 
     bindEvents() {
         if (this.elements.brandSelect) {
             this.elements.brandSelect.addEventListener('change', (e) => this.onBrandChange(e));
         }
-
         if (this.elements.modelSelect) {
             this.elements.modelSelect.addEventListener('change', (e) => this.onModelChange(e));
         }
-
         if (this.elements.filmSelect) {
             this.elements.filmSelect.addEventListener('change', (e) => this.onFilmChange(e));
         }
-
         if (this.elements.addToCartBtn) {
             this.elements.addToCartBtn.addEventListener('click', () => this.addToCart());
         }
@@ -149,20 +214,15 @@ class VarianceConfigurator {
     buildCustomBrandDropdown(brands) {
         const selectWrap = document.querySelector('.select-wrap');
         if (!selectWrap) return;
+        const oldCustom = selectWrap.querySelector('.custom-select');
+        if (oldCustom) oldCustom.remove();
 
-        // Create custom dropdown HTML
         const customSelect = document.createElement('div');
         customSelect.className = 'custom-select';
-
-        // Trigger button
         const trigger = document.createElement('div');
         trigger.className = 'custom-select-trigger';
-        trigger.innerHTML = `
-        <span>Choose a brand</span>
-        <span style="margin-left: auto;">▼</span>
-    `;
-
-        // Options container
+        const chooseText = this.translations?.chooseBrand || "Choose a brand";
+        trigger.innerHTML = `<span>${chooseText}</span><span style="margin-left: auto;">▼</span>`;
         const optionsContainer = document.createElement('div');
         optionsContainer.className = 'custom-select-options';
 
@@ -171,37 +231,29 @@ class VarianceConfigurator {
             option.className = 'custom-option';
             option.dataset.id = brand.id || brand.marque_id;
             option.dataset.image = brand.images?.[0]?.url || '';
-
             option.innerHTML = `
-            ${brand.images?.[0]?.url ? `<img src="${brand.images[0].url}" alt="${brand.titre}">` : '<div style="width:35px;"></div>'}
-            <span>${brand.titre || brand.label || brand.name}</span>
-        `;
-
+                ${brand.images?.[0]?.url ? `<img src="${brand.images[0].url}" alt="${brand.titre}">` : '<div style="width:35px;"></div>'}
+                <span>${brand.titre || brand.label || brand.name}</span>
+            `;
             option.addEventListener('click', () => {
                 this.onCustomBrandSelect(brand, trigger, optionsContainer);
                 optionsContainer.classList.remove('open');
                 this.customDropdownOpen = false;
             });
-
             optionsContainer.appendChild(option);
         });
 
         customSelect.appendChild(trigger);
         customSelect.appendChild(optionsContainer);
-
-        // Replace original select
         const originalSelect = this.elements.brandSelect;
         originalSelect.style.display = 'none';
         selectWrap.appendChild(customSelect);
 
-        // Toggle dropdown
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
             optionsContainer.classList.toggle('open');
             this.customDropdownOpen = optionsContainer.classList.contains('open');
         });
-
-        // Close on click outside
         document.addEventListener('click', () => {
             if (this.customDropdownOpen) {
                 optionsContainer.classList.remove('open');
@@ -216,22 +268,18 @@ class VarianceConfigurator {
             name: brand.titre || brand.label || brand.name,
             image: brand.images?.[0]?.url || ''
         };
-
-        // Update trigger display
+        const chooseText = this.translations?.chooseBrand || "Choose a brand";
         trigger.innerHTML = `
-        ${this.state.selectedBrand.image ? `<img src="${this.state.selectedBrand.image}" style="width:30px;height:30px;object-fit:contain;">` : ''}
-        <span>${this.state.selectedBrand.name}</span>
-        <span style="margin-left: auto;">▼</span>
-    `;
-
-        // Update active class in options
+            ${this.state.selectedBrand.image ? `<img src="${this.state.selectedBrand.image}" style="width:30px;height:30px;object-fit:contain;">` : ''}
+            <span>${this.state.selectedBrand.name}</span>
+            <span style="margin-left: auto;">▼</span>
+        `;
         optionsContainer.querySelectorAll('.custom-option').forEach(opt => {
             opt.classList.remove('selected');
             if (opt.querySelector('span').textContent === this.state.selectedBrand.name) {
                 opt.classList.add('selected');
             }
         });
-
         this.updateProgress(2);
         this.showModelSection();
         this.loadModels(this.state.selectedBrand.id);
@@ -239,18 +287,14 @@ class VarianceConfigurator {
 
     async loadBrands() {
         try {
-            const lang = window.VarianceConfig?.storeLanguage || 'en';
+            await this.translateAllStaticTexts();
             const response = await fetch(`${this.apiBase}/brands?lang=${this.getCurrentLang()}`);
             const data = await response.json();
             const brands = data?.liste?.valeurs || data?.brands || data || [];
-
             if (this.elements.brandSelect) {
-                // Build custom dropdown instead of native select
                 this.buildCustomBrandDropdown(brands);
             }
-
             this.state.brands = brands;
-
         } catch (error) {
             console.error('Failed to load brands:', error);
             if (this.elements.brandSelect) {
@@ -265,17 +309,10 @@ class VarianceConfigurator {
             this.resetBrandSelection();
             return;
         }
-
         const brandId = selectedOption.value;
         const brandName = selectedOption.textContent;
         const brandImage = selectedOption.dataset.image;
-
-        this.state.selectedBrand = {
-            id: brandId,
-            name: brandName,
-            image: brandImage
-        };
-
+        this.state.selectedBrand = { id: brandId, name: brandName, image: brandImage };
         this.updateBrandPreview(brandName, brandImage);
         this.updateProgress(2);
         this.showModelSection();
@@ -290,129 +327,41 @@ class VarianceConfigurator {
     }
 
     updateBrandPreview(name, image) {
-        const brandCard = this.elements.brandCard;
         const brandPreview = this.elements.brandPreview;
-
         if (!name) {
-            if (brandCard) {
-                brandCard.classList.add('brand-card--empty');
-                brandCard.innerHTML = `
-          <div class="brand-card__placeholder">
-            <div class="brand-card__icon">✨</div>
-            <p>Select a brand to see its logo here</p>
-          </div>
-        `;
-            }
-
-
             if (brandPreview) {
-                brandPreview.innerHTML = `
-          <div class="preview-empty">
-            <div class="preview-empty__icon">🚗</div>
-            <h3>No brand selected</h3>
-            <p>Choose a brand from the dropdown</p>
-          </div>
-        `;
+                brandPreview.innerHTML = `<div class="preview-empty"><div class="preview-empty__icon">🚗</div><h3>No brand selected</h3><p>Choose a brand from the dropdown</p></div>`;
             }
             return;
         }
-
-        const previewHtml = `
-      <div class="brand-card" style="width:100%; text-align:center;">
-        ${image ? `<img class="brand-card__image" src="${image}" alt="${name}" loading="lazy">` : `
-          <div class="brand-card__placeholder">
-            <div class="brand-card__icon">🏷️</div>
-          </div>
-        `}
-        <p class="brand-card__name">${name}</p>
-        <div class="brand-card__meta">Brand ID: ${this.state.selectedBrand.id}</div>
-      </div>
-    `;
-
+        const previewHtml = `<div class="brand-card" style="width:100%; text-align:center;">${image ? `<img class="brand-card__image" src="${image}" alt="${name}" loading="lazy">` : `<div class="brand-card__placeholder"><div class="brand-card__icon">🏷️</div></div>`}<p class="brand-card__name">${name}</p><div class="brand-card__meta">Brand ID: ${this.state.selectedBrand.id}</div></div>`;
         if (brandPreview) brandPreview.innerHTML = previewHtml;
-
-        if (brandCard) {
-            brandCard.classList.remove('brand-card--empty');
-            brandCard.innerHTML = `
-        ${image ? `<img class="brand-card__image" src="${image}" alt="${name}">` : `
-          <div class="brand-card__placeholder">
-            <div class="brand-card__icon">🏷️</div>
-          </div>
-        `}
-        <p class="brand-card__name">${name}</p>
-        <div class="brand-card__meta">Brand ID: ${this.state.selectedBrand.id}</div>
-      `;
-        }
     }
 
-    showModelSection() {
-        if (this.elements.modelSection) {
-            this.elements.modelSection.classList.remove('hidden');
-        }
-    }
-
-    hideModelSection() {
-        if (this.elements.modelSection) {
-            this.elements.modelSection.classList.add('hidden');
-        }
-    }
-
-    showModelSection() {
-        if (this.elements.modelSection) {
-            this.elements.modelSection.classList.remove('hidden');
-        }
-    }
-
-    hideModelSection() {
-        if (this.elements.modelSection) {
-            this.elements.modelSection.classList.add('hidden');
-        }
-        // Hide model image preview
-        if (this.elements.modelImagePreview) {
-            this.elements.modelImagePreview.classList.add('hidden');
-        }
-    }
-
-    onModelSelect(model) {
-        this.state.selectedModel = {
-            id: model.id || model.modele_id,
-            name: model.titre || model.label || model.name
-        };
-
-        this.updateProgress(3);
-        this.showDeclinaisonSection();
-        this.loadDeclinaisons(this.state.selectedModel.id);
-    }
+    showModelSection() { if (this.elements.modelSection) this.elements.modelSection.classList.remove('hidden'); }
+    hideModelSection() { if (this.elements.modelSection) this.elements.modelSection.classList.add('hidden'); if (this.elements.modelImagePreview) this.elements.modelImagePreview.classList.add('hidden'); }
 
     async loadModels(brandId) {
         const modelSelect = this.elements.modelSelect;
-        const modelSection = this.elements.modelSection;
         if (!modelSelect) return;
-
         modelSelect.disabled = true;
-        modelSelect.innerHTML = '<option value="">Loading models...</option>';
-        modelSection.classList.remove('hidden');
-
+        modelSelect.innerHTML = `<option value="" class="rotating">⏳</option>`;
+        this.elements.modelSection.classList.remove('hidden');
         try {
             const response = await fetch(`${this.apiBase}/models?marque_id=${brandId}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
-
             const models = data?.liste?.valeurs || data?.models || data || [];
-
-            modelSelect.innerHTML = '<option value="">Choose a model</option>';
-
+            const chooseText = this.translations?.chooseModel || "Choose a model";
+            modelSelect.innerHTML = `<option value="">${chooseText}</option>`;
             models.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.id || model.modele_id;
                 option.textContent = model.titre || model.label || model.name;
-                // Store image URL in dataset
                 option.dataset.image = model.images?.[0]?.url || '';
                 option.dataset.model = JSON.stringify(model);
                 modelSelect.appendChild(option);
             });
-
             modelSelect.disabled = false;
-
         } catch (error) {
             console.error('Failed to load models:', error);
             modelSelect.innerHTML = '<option value="">Failed to load models</option>';
@@ -425,25 +374,16 @@ class VarianceConfigurator {
             this.resetModelSelection();
             return;
         }
-
         const modelId = selectedOption.value;
         const modelName = selectedOption.textContent;
         const modelImage = selectedOption.dataset.image;
-
-        this.state.selectedModel = {
-            id: modelId,
-            name: modelName,
-            image: modelImage
-        };
-
-        // Show model image if available
+        this.state.selectedModel = { id: modelId, name: modelName, image: modelImage };
         if (modelImage && this.elements.modelImagePreview) {
             this.elements.selectedModelImg.src = modelImage;
             this.elements.modelImagePreview.classList.remove('hidden');
         } else {
             this.elements.modelImagePreview.classList.add('hidden');
         }
-
         this.updateProgress(3);
         this.showDeclinaisonSection();
         this.loadDeclinaisons(modelId);
@@ -451,55 +391,30 @@ class VarianceConfigurator {
 
     resetModelSelection() {
         this.state.selectedModel = null;
-
-        // Hide model image preview
-        if (this.elements.modelImagePreview) {
-            this.elements.modelImagePreview.classList.add('hidden');
-        }
-
+        if (this.elements.modelImagePreview) this.elements.modelImagePreview.classList.add('hidden');
         this.hideDeclinaisonSection();
         this.hideKitSection();
         this.hideTintSection();
-        this.hideResult();
+        this.resetResultToPlaceholder();
         this.updateProgress(2);
     }
 
-    showDeclinaisonSection() {
-        if (this.elements.declinaisonSection) {
-            this.elements.declinaisonSection.classList.remove('hidden');
-        }
-        this.hideKitSection();
-        this.hideTintSection();
-        this.hideResult();
-    }
-
-    hideDeclinaisonSection() {
-        if (this.elements.declinaisonSection) {
-            this.elements.declinaisonSection.classList.add('hidden');
-        }
-    }
+    showDeclinaisonSection() { if (this.elements.declinaisonSection) this.elements.declinaisonSection.classList.remove('hidden'); this.hideKitSection(); this.hideTintSection(); this.resetResultToPlaceholder(); }
+    hideDeclinaisonSection() { if (this.elements.declinaisonSection) this.elements.declinaisonSection.classList.add('hidden'); }
 
     async loadDeclinaisons(modelId) {
         const grid = this.elements.declinaisonList;
         if (!grid) return;
-
-        grid.innerHTML = '<div class="loading">Loading options...</div>';
-
+        grid.innerHTML = `<div class="loading">⏳</div>`;
         try {
             const response = await fetch(`${this.apiBase}/declinaisons?modele_id=${modelId}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
-
             const declinaisons = data?.liste?.valeurs || data?.declinaisons || data || [];
-
             if (declinaisons.length === 0) {
                 grid.innerHTML = '<p>No options available</p>';
                 return;
             }
-
-            this.renderTileGrid(grid, declinaisons, 'declinaison', (item) => {
-                this.onDeclinaisonSelect(item);
-            });
-
+            this.renderTileGrid(grid, declinaisons, 'declinaison', (item) => { this.onDeclinaisonSelect(item); });
         } catch (error) {
             console.error('Failed to load declinaisons:', error);
             grid.innerHTML = '<p>Failed to load options</p>';
@@ -508,93 +423,58 @@ class VarianceConfigurator {
 
     renderTileGrid(container, items, type, onClickCallback) {
         container.innerHTML = '';
-
         items.forEach(item => {
             const card = document.createElement('div');
             card.className = 'tile-card';
             card.dataset.id = item.id || item.declinaison_id || item.vitre_id;
-
             const imageUrl = item.images?.[0]?.url || item.image_url;
             let label = item.titre || item.label || item.name;
             let badge = '';
-
-            // For declinaisons (year/trim), show actual year range
             if (type === 'declinaison' && item.annee_debut) {
                 const yearStart = item.annee_debut;
                 const yearEnd = item.annee_fin || 'present';
                 badge = `${yearStart} - ${yearEnd}`;
-                // Also update label if needed
                 if (item.version) label = `${item.version} (${badge})`;
                 else if (item.carrosserie) label = `${item.carrosserie} (${badge})`;
                 else label = badge;
             }
-
             card.innerHTML = `
-            ${imageUrl ? `<img src="${imageUrl}" alt="${label}" loading="lazy">` : `
-                <div style="height:80px; background:#f1f5f9; border-radius:10px; display:flex; align-items:center; justify-content:center;">
-                    <span>${type === 'model' ? '🚙' : '🚗'}</span>
-                </div>
-            `}
-            <p class="tile-label">${label || 'Option'}</p>
-            ${badge && type === 'declinaison' ? `<span class="tile-badge">${badge}</span>` : ''}
-        `;
-
+                ${imageUrl ? `<img src="${imageUrl}" alt="${label}" loading="lazy">` : `<div style="height:80px; background:#f1f5f9; border-radius:10px; display:flex; align-items:center; justify-content:center;"><span>${type === 'model' ? '🚙' : '🚗'}</span></div>`}
+                <p class="tile-label">${label || 'Option'}</p>
+                ${badge && type === 'declinaison' ? `<span class="tile-badge">${badge}</span>` : ''}
+            `;
             card.addEventListener('click', () => {
                 document.querySelectorAll(`#${container.id} .tile-card`).forEach(c => c.classList.remove('active'));
                 card.classList.add('active');
                 onClickCallback(item);
             });
-
             container.appendChild(card);
         });
     }
 
     onDeclinaisonSelect(declinaison) {
-        this.state.selectedDeclinaison = {
-            id: declinaison.id || declinaison.declinaison_id,
-            label: declinaison.titre || declinaison.label
-        };
-
+        this.state.selectedDeclinaison = { id: declinaison.id || declinaison.declinaison_id, label: declinaison.titre || declinaison.label };
         this.updateProgress(4);
         this.showKitSection();
         this.loadKits(this.state.selectedDeclinaison.id);
     }
 
-    showKitSection() {
-        if (this.elements.kitSection) {
-            this.elements.kitSection.classList.remove('hidden');
-        }
-        this.hideTintSection();
-        this.hideResult();
-    }
-
-    hideKitSection() {
-        if (this.elements.kitSection) {
-            this.elements.kitSection.classList.add('hidden');
-        }
-    }
+    showKitSection() { if (this.elements.kitSection) this.elements.kitSection.classList.remove('hidden'); this.hideTintSection(); this.resetResultToPlaceholder(); }
+    hideKitSection() { if (this.elements.kitSection) this.elements.kitSection.classList.add('hidden'); }
 
     async loadKits(declinaisonId) {
         const grid = this.elements.kitList;
         if (!grid) return;
-
-        grid.innerHTML = '<div class="loading">Loading kits...</div>';
-
+        grid.innerHTML = `<div class="loading">⏳</div>`;
         try {
             const response = await fetch(`${this.apiBase}/kits?declinaison_id=${declinaisonId}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
-
             const kits = data?.liste?.valeurs || data?.kits || data || [];
-
             if (kits.length === 0) {
                 grid.innerHTML = '<p>No kits available</p>';
                 return;
             }
-
-            this.renderTileGrid(grid, kits, 'kit', (item) => {
-                this.onKitSelect(item);
-            });
-
+            this.renderTileGrid(grid, kits, 'kit', (item) => { this.onKitSelect(item); });
         } catch (error) {
             console.error('Failed to load kits:', error);
             grid.innerHTML = '<p>Failed to load kits</p>';
@@ -602,55 +482,33 @@ class VarianceConfigurator {
     }
 
     onKitSelect(kit) {
-        this.state.selectedKit = {
-            id: kit.id || kit.vitre_id,
-            label: kit.titre || kit.label
-        };
-
+        this.state.selectedKit = { id: kit.id || kit.vitre_id, label: kit.titre || kit.label };
         this.updateProgress(5);
         this.showTintSection();
         this.loadFilms();
     }
 
-    showTintSection() {
-        if (this.elements.tintSection) {
-            this.elements.tintSection.classList.remove('hidden');
-        }
-        this.hideResult();
-    }
-
-    hideTintSection() {
-        if (this.elements.tintSection) {
-            this.elements.tintSection.classList.add('hidden');
-        }
-    }
+    showTintSection() { if (this.elements.tintSection) this.elements.tintSection.classList.remove('hidden'); this.resetResultToPlaceholder(); }
+    hideTintSection() { if (this.elements.tintSection) this.elements.tintSection.classList.add('hidden'); }
 
     async loadFilms() {
         const filmSelect = this.elements.filmSelect;
         if (!filmSelect) return;
-
         filmSelect.disabled = true;
-        filmSelect.innerHTML = '<option value="">Loading tints...</option>';
-
+        filmSelect.innerHTML = `<option value="" class="rotating">⏳</option>`;
         try {
-            const response = await fetch(
-                `${this.apiBase}/films?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&lang=${this.getCurrentLang()}`
-            );
+            const response = await fetch(`${this.apiBase}/films?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
-
             const films = data?.liste?.valeurs || data?.films || data || [];
-
-            filmSelect.innerHTML = '<option value="">Choose a tint</option>';
-
+            const chooseText = this.translations?.chooseTint || "Choose a tint";
+            filmSelect.innerHTML = `<option value="">${chooseText}</option>`;
             films.forEach(film => {
                 const option = document.createElement('option');
                 option.value = film.id || film.film_id;
                 option.textContent = film.titre || film.label || film.name;
                 filmSelect.appendChild(option);
             });
-
             filmSelect.disabled = false;
-
         } catch (error) {
             console.error('Failed to load films:', error);
             filmSelect.innerHTML = '<option value="">Failed to load tints</option>';
@@ -660,46 +518,60 @@ class VarianceConfigurator {
     async onFilmChange(event) {
         const filmId = event.target.value;
         if (!filmId) {
-            this.hideResult();
+            this.resetResultToPlaceholder();
             return;
         }
-
         this.state.selectedFilm = filmId;
-
+        this.showResultLoader();
         try {
-            const response = await fetch(
-                `${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${filmId}&lang=${this.getCurrentLang()}`
-            );
+            const response = await fetch(`${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${filmId}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
-
             this.state.filmDetail = data;
-            this.showResult(data);
+            await this.showResult(data);
             this.updateProgress(5, true);
-
+            this.elements.addToCartBtn.disabled = false;
         } catch (error) {
             console.error('Failed to load film details:', error);
+            this.resetResultToPlaceholder();
+            this.elements.addToCartBtn.disabled = true;
         }
+    }
+
+    showResultLoader() {
+        if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
+        if (this.elements.resultContent) {
+            this.elements.resultContent.classList.remove('hidden');
+            this.elements.resultContent.innerHTML = `<div class=" rotating">⏳</div>`;
+        }
+        this.elements.addToCartBtn.disabled = true;
+    }
+
+    resetResultToPlaceholder() {
+        if (this.resultPlaceholder) this.resultPlaceholder.classList.remove('hidden');
+        if (this.elements.resultContent) {
+            this.elements.resultContent.classList.add('hidden');
+            this.elements.resultContent.innerHTML = '';
+        }
+        this.elements.addToCartBtn.disabled = true;
+        this.state.filmDetail = null;
     }
 
     async showResult(detail) {
         const resultBox = this.elements.resultBox;
         const resultContent = this.elements.resultContent;
-
         if (!resultBox || !resultContent) return;
 
-        // ✅ Translate heading and button
-        await this.translateHeading();
-        await this.translateButton();
+        if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
+        resultContent.classList.remove('hidden');
 
-        // ✅ Translate static labels
-        const refLabel = await this.translateStaticText("Ref:", "ref");
-        const uvLabel = await this.translateStaticText("UV", "uv");
-        const solarLabel = await this.translateStaticText("Solar", "solar");
-        const lightLabel = await this.translateStaticText("Light", "light");
-        const techSheetLabel = await this.translateStaticText("Technical Sheet", "techSheet");
-        const noPDFLabel = await this.translateStaticText("No PDF", "noPDF");
+        const t = this.translations || {};
+        const refLabel = t.ref || await this.translateStaticText("Ref:", "ref");
+        const uvLabel = t.uv || await this.translateStaticText("UV", "uv");
+        const solarLabel = t.solar || await this.translateStaticText("Solar", "solar");
+        const lightLabel = t.light || await this.translateStaticText("Light", "light");
+        const techSheetLabel = t.techSheet || await this.translateStaticText("Technical Sheet", "techSheet");
+        const noPDFLabel = t.noPDF || await this.translateStaticText("No PDF", "noPDF");
 
-        // Get data from API
         const firstValue = detail?.liste?.valeurs?.[0] || detail;
         const reference = detail?.reference || firstValue?.reference || 'N/A';
         const specs = {
@@ -712,7 +584,6 @@ class VarianceConfigurator {
         const apiPrice = firstValue?.prix_public?.prix || detail?.prix_public?.prix || 0;
         const currentLang = this.getCurrentLang();
 
-        // ✅ Render with translated labels
         resultContent.innerHTML = `
         <div class="result-compact">
             <div class="compact-section">
@@ -725,39 +596,15 @@ class VarianceConfigurator {
                     ${specs.solar ? `<span>${solarLabel} ${specs.solar}%</span>` : ''}
                     ${specs.light ? `<span>${lightLabel} ${specs.light}%</span>` : ''}
                 </div>
-                ${schemeImages.length ? `
-                    <div class="row images">
-                        ${schemeImages.map(img => `<img src="${img.url || img}">`).join('')}
-                    </div>
-                ` : ''}
+                ${schemeImages.length ? `<div class="row images">${schemeImages.map(img => `<img src="${img.url || img}">`).join('')}</div>` : ''}
             </div>
             <div class="compact-section">
-                ${pdfUrl
-                ? `<a href="${pdfUrl}" target="_blank" class="pdf-link">📄 ${techSheetLabel}</a>`
-                : `<span class="no-pdf">${noPDFLabel}</span>`
-            }
+                ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="pdf-link">📄 ${techSheetLabel}</a>` : `<span class="no-pdf">${noPDFLabel}</span>`}
             </div>
             <div class="compact-price">
-                <strong>€${(parseFloat(apiPrice || 0) + parseFloat(window.VarianceConfig.productPrice || 0)).toLocaleString(
-                currentLang === 'nl' ? 'nl-NL' : 'en-US',
-                { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-            )}</strong>
+                <strong>€${(parseFloat(apiPrice || 0) + parseFloat(window.VarianceConfig.productPrice || 0)).toLocaleString(currentLang === 'nl' ? 'nl-NL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
-        </div>
-    `;
-
-        if (this.elements.addToCartBtn) {
-            this.elements.addToCartBtn.classList.remove('hidden');
-        }
-
-        resultBox.classList.remove('hidden');
-        resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    hideResult() {
-        if (this.elements.resultBox) {
-            this.elements.resultBox.classList.add('hidden');
-        }
+        </div>`;
     }
 
     updateProgress(step, isComplete = false) {
@@ -765,12 +612,8 @@ class VarianceConfigurator {
         steps.forEach((stepEl, index) => {
             const stepNum = index + 1;
             stepEl.classList.remove('active', 'completed');
-
-            if (stepNum < step) {
-                stepEl.classList.add('completed');
-            } else if (stepNum === step) {
-                stepEl.classList.add('active');
-            }
+            if (stepNum < step) stepEl.classList.add('completed');
+            else if (stepNum === step) stepEl.classList.add('active');
         });
     }
 
@@ -831,10 +674,8 @@ class VarianceConfigurator {
         const backendUrl = `${this.apiBase}/cart/add-configured-item?shop=${encodeURIComponent(shopDomain)}`;
 
         try {
-            // 1. Get variant ID from backend (with timeout)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 20000);
-
             const backendRes = await fetch(backendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -842,96 +683,51 @@ class VarianceConfigurator {
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
-
-            if (!backendRes.ok) {
-                throw new Error(`Backend error: ${backendRes.status}`);
-            }
-
+            if (!backendRes.ok) throw new Error(`Backend error: ${backendRes.status}`);
             const backendData = await backendRes.json();
-            if (!backendData.success || !backendData.variantId) {
-                throw new Error(backendData.error || 'Failed to get variant');
-            }
-
+            if (!backendData.success || !backendData.variantId) throw new Error(backendData.error || 'Failed to get variant');
             let variantId = backendData.variantId;
-            // Clean GID if needed
-            if (typeof variantId === 'string' && variantId.includes('gid://')) {
-                variantId = variantId.split('/').pop();
-            }
+            if (typeof variantId === 'string' && variantId.includes('gid://')) variantId = variantId.split('/').pop();
             variantId = parseInt(variantId);
-
-            console.log("Adding to cart - Variant ID:", variantId);
-
-            // 2. Add to Shopify cart
             const formData = new FormData();
             formData.append('id', variantId);
             formData.append('quantity', '1');
-
-            // Add properties
-            Object.keys(cartProperties).forEach(key => {
-                formData.append(`properties[${key}]`, cartProperties[key]);
-            });
-
-            const cartAddRes = await fetch('/cart/add.js', {
-                method: 'POST',
-                body: formData,
-            });
-
+            Object.keys(cartProperties).forEach(key => { formData.append(`properties[${key}]`, cartProperties[key]); });
+            const cartAddRes = await fetch('/cart/add.js', { method: 'POST', body: formData });
             if (!cartAddRes.ok) {
                 const cartError = await cartAddRes.json();
                 throw new Error(cartError.description || 'Cart add failed');
             }
-
-            // Success - redirect
             window.location.href = '/cart';
-
         } catch (error) {
             console.error('Add to cart error:', error);
-            if (error.name === 'AbortError') {
-                alert('Request timed out. Please check your connection and try again.');
-            } else {
-                alert('Could not add to cart. ' + error.message);
-            }
+            alert('Could not add to cart. ' + error.message);
             btn.innerHTML = originalHTML;
             btn.disabled = false;
         }
     }
 }
 
-// ✅ New initialization with permission check
 document.addEventListener('DOMContentLoaded', async () => {
     const configuratorContainer = document.getElementById('variance-configurator');
     if (!configuratorContainer) return;
-
-    // Get product ID from liquid variable (already defined in theme)
     const productId = window.VarianceConfig?.productId || null;
-    const shopDomain = window.Shopify?.shop || ''; // Shopify injects this globally
-
+    const shopDomain = window.Shopify?.shop || '';
     if (!productId) {
-        console.warn('No product ID found, hiding configurator');
         configuratorContainer.style.display = 'none';
         return;
     }
-
     try {
-        // Call your backend to check if this product is allowed
         const response = await fetch(`/apps/customizer/check-product-extension?productId=${productId}&shop=${shopDomain}`);
         const data = await response.json();
-
         if (data.allowed) {
-            // ✅ Show and initialize configurator
             configuratorContainer.style.display = 'block';
             new VarianceConfigurator();
-            console.log('Variance Configurator initialized for product', productId);
         } else {
-            // ❌ Hide configurator completely
             configuratorContainer.style.display = 'none';
-            // Optionally remove from DOM
-            // configuratorContainer.remove();
-            console.log('Configurator not allowed for this product');
         }
     } catch (error) {
         console.error('Failed to check extension permission:', error);
-        // On error, hide configurator for safety
         configuratorContainer.style.display = 'none';
     }
 });
