@@ -23,7 +23,7 @@ class VarianceDecoupeConfigurator {
       valRef: document.getElementById('val-ref'),
       valLaizeSingle: document.getElementById('val-laize-single'),
       valLengthDefault: document.getElementById('val-length-default'),
-      valPrice: document.getElementById('val-price'),          // ✅ changed
+      valPrice: document.getElementById('val-price'),
       valCommercialRef: document.getElementById('val-commercial-ref'),
       description: document.getElementById('decoupe-description'),
       laizeGroup: document.getElementById('decoupe-laize-group'),
@@ -34,27 +34,30 @@ class VarianceDecoupeConfigurator {
       addToCartBtn: document.getElementById('decoupe-add-to-cart-btn')
     };
 
+    // Create a placeholder element for initial message (if not exists)
+    if (!document.getElementById('decoupe-result-placeholder')) {
+      const placeholderDiv = document.createElement('div');
+      placeholderDiv.id = 'decoupe-result-placeholder';
+      placeholderDiv.className = 'result-placeholder';
+      placeholderDiv.innerHTML = '<p>🔍 Please make a selection first</p>';
+      this.elements.detailCard.parentNode.insertBefore(placeholderDiv, this.elements.detailCard);
+    }
+    this.resultPlaceholder = document.getElementById('decoupe-result-placeholder');
+
     this.init();
   }
 
   init() {
+    this.setInitialUI();
     this.loadOptions();
     this.registerEvents();
   }
 
-  registerEvents() {
-    if (this.elements.decoupeSelect) {
-      this.elements.decoupeSelect.addEventListener('change', (e) => this.onOptionChange(e));
-    }
-    if (this.elements.laizeSelect) {
-      this.elements.laizeSelect.addEventListener('change', (e) => this.onLaizeChange(e));
-    }
-    if (this.elements.lengthInput) {
-      this.elements.lengthInput.addEventListener('input', (e) => this.onLengthChange(e));
-    }
-    if (this.elements.addToCartBtn) {
-      this.elements.addToCartBtn.addEventListener('click', () => this.addToCart());
-    }
+  setInitialUI() {
+    // Initially hide detail card, show placeholder
+    this.elements.detailCard.classList.add('hidden');
+    if (this.resultPlaceholder) this.resultPlaceholder.classList.remove('hidden');
+    this.elements.addToCartBtn.disabled = true;
   }
 
   getCurrentLang() {
@@ -82,38 +85,42 @@ class VarianceDecoupeConfigurator {
     }
   }
 
-  async translateButton() {
-    const btn = this.elements.addToCartBtn;
-    if (!btn) return;
-    const svg = btn.querySelector('svg');
-    const translatedText = await this.translateStaticText("Add to Cart", "addToCart");
-    btn.innerHTML = '';
-    if (svg) btn.appendChild(svg);
-    btn.appendChild(document.createTextNode(' ' + translatedText));
-  }
-
   async translateStaticLabels() {
     this.translatedLabels = {
       ref: await this.translateStaticText("Ref:", "ref"),
       laize: await this.translateStaticText("Breedte / laize:", "laize"),
       length: await this.translateStaticText("Lengte:", "length"),
-      price: await this.translateStaticText("Price:", "price"),          // ✅ changed
+      price: await this.translateStaticText("Price:", "price"),
       commercial: await this.translateStaticText("Commercial Ref:", "commercial"),
       pricePerSqm: await this.translateStaticText("Price per sq.m", "pricePerSqm"),
       totalPrice: await this.translateStaticText("Total Price", "totalPrice"),
       selectWidth: await this.translateStaticText("Select Width (Laize)", "selectWidth"),
       lengthField: await this.translateStaticText("Car Film aantal (lengte, cm)", "lengthField"),
       chooseOption: await this.translateStaticText("Choose an option...", "chooseOption"),
-      failedLoad: await this.translateStaticText("Failed to load options", "failedLoad")
+      pleaseSelectFirst: await this.translateStaticText("Please make a selection first", "pleaseSelectFirst"),
+      addToCart: await this.translateStaticText("Add to Cart", "addToCart"),
+      loadingOptions: await this.translateStaticText("Loading options...", "loadingOptions"),
+      loadingDetails: await this.translateStaticText("Loading details...", "loadingDetails")
     };
   }
 
   async loadOptions() {
+    // First, show spinner on select placeholder during translation
+    const select = this.elements.decoupeSelect;
+    select.disabled = true;
+    select.innerHTML = '<option value="" class="rotating">⏳</option>';
+
+    // Translate static labels and placeholder text
+    await this.translateStaticLabels();
+    if (this.resultPlaceholder) {
+      this.resultPlaceholder.innerHTML = `<p>🔍 ${this.translatedLabels.pleaseSelectFirst}</p>`;
+    }
+    // Update button text
+    await this.translateButton();
+
     try {
-      await this.translateStaticLabels();
       const response = await fetch(`${this.apiBase}/decoupe-list?lang=${this.getCurrentLang()}`);
       if (!response.ok) throw new Error('Failed to fetch decoupe options');
-
       const data = await response.json();
 
       let options = [];
@@ -137,10 +144,8 @@ class VarianceDecoupeConfigurator {
       }
     } catch (err) {
       console.error('[Decoupe] Error loading options:', err);
-      if (this.elements.decoupeSelect) {
-        const failedText = this.translatedLabels?.failedLoad || "Failed to load options";
-        this.elements.decoupeSelect.innerHTML = `<option value="">${failedText}</option>`;
-      }
+      select.innerHTML = `<option value="">${this.translatedLabels.failedLoad || 'Failed to load'}</option>`;
+      select.disabled = false;
     }
   }
 
@@ -153,6 +158,7 @@ class VarianceDecoupeConfigurator {
     if (!Array.isArray(this.state.options)) {
       console.error('[Decoupe] Options is not an array:', this.state.options);
       select.innerHTML += '<option disabled>Invalid data format</option>';
+      select.disabled = false;
       return;
     }
 
@@ -162,6 +168,7 @@ class VarianceDecoupeConfigurator {
       option.textContent = item.titre || item.title || item.reference || `Option ${item.id}`;
       select.appendChild(option);
     });
+    select.disabled = false;
   }
 
   async onOptionChange(event) {
@@ -171,7 +178,10 @@ class VarianceDecoupeConfigurator {
       return;
     }
 
-    this.showLoader(true);
+    // Show loader in result area
+    this.showResultLoader();
+    this.elements.addToCartBtn.disabled = true;
+
     try {
       const response = await fetch(`${this.apiBase}/decoupe-detail/${id}?lang=${this.getCurrentLang()}`);
       if (!response.ok) throw new Error('Failed to fetch details');
@@ -179,34 +189,32 @@ class VarianceDecoupeConfigurator {
       const detail = await response.json();
       this.state.selectedItem = detail;
       await this.renderItemDetails(detail);
+      this.elements.addToCartBtn.disabled = false;
     } catch (err) {
       console.error('[Decoupe] Error loading detail:', err);
       this.resetUI();
-    } finally {
-      this.showLoader(false);
     }
   }
 
   async renderItemDetails(detail) {
-    const card = this.elements.detailCard;
-    if (!card) return;
+    // Hide placeholder, show detail card
+    if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
+    this.elements.detailCard.classList.remove('hidden');
+    this.elements.detailLoader.classList.add('hidden');
 
-    if (!this.translatedLabels) await this.translateStaticLabels();
-
-    // Apply static labels to UI
-    document.querySelector('#row-ref .info-label').textContent = this.translatedLabels.ref;
-    document.querySelector('#row-laize-single .info-label').textContent = this.translatedLabels.laize;
-    document.querySelector('#row-length-default .info-label').textContent = this.translatedLabels.length;
-    document.querySelector('#row-price .info-label').textContent = this.translatedLabels.price;      // ✅ changed
-    document.querySelector('#row-commercial-ref .info-label').textContent = this.translatedLabels.commercial;
-    this.elements.sqmPriceLabel.previousElementSibling.textContent = this.translatedLabels.pricePerSqm;
-    document.querySelector('.total-label').textContent = this.translatedLabels.totalPrice;
-    document.querySelector('#decoupe-laize-group .field-label').textContent = this.translatedLabels.selectWidth;
-    document.querySelector('#decoupe-length-group .field-label').textContent = this.translatedLabels.lengthField;
+    // Apply static labels to UI (already translated)
+    const t = this.translatedLabels;
+    document.querySelector('#row-ref .info-label').textContent = t.ref;
+    document.querySelector('#row-laize-single .info-label').textContent = t.laize;
+    document.querySelector('#row-length-default .info-label').textContent = t.length;
+    document.querySelector('#row-price .info-label').textContent = t.price;
+    document.querySelector('#row-commercial-ref .info-label').textContent = t.commercial;
+    this.elements.sqmPriceLabel.previousElementSibling.textContent = t.pricePerSqm;
+    document.querySelector('.total-label').textContent = t.totalPrice;
+    document.querySelector('#decoupe-laize-group .field-label').textContent = t.selectWidth;
+    document.querySelector('#decoupe-length-group .field-label').textContent = t.lengthField;
 
     const firstVal = detail?.liste?.valeurs?.[0] || detail;
-
-    // Basic fields
     const reference = detail.reference || firstVal.reference || 'N/A';
     const commRef = detail.reference_commerciale || firstVal.reference_commerciale || 'N/A';
     const desc = detail.description || firstVal.description || '';
@@ -214,14 +222,12 @@ class VarianceDecoupeConfigurator {
     this.elements.valRef.textContent = reference;
     this.elements.valCommercialRef.textContent = commRef;
 
-    // ✅ Extract and display base price from API
+    // Base price
     let basePriceValue = 'N/A';
     const priceRaw = detail['prix de base'] || detail.prix_de_base || firstVal['prix de base'] || firstVal.prix_de_base;
     if (priceRaw) {
       const priceNum = parseFloat(priceRaw);
-      if (!isNaN(priceNum)) {
-        basePriceValue = priceNum.toFixed(2) + ' €';
-      }
+      if (!isNaN(priceNum)) basePriceValue = priceNum.toFixed(2) + ' €';
     }
     this.elements.valPrice.textContent = basePriceValue;
 
@@ -248,13 +254,8 @@ class VarianceDecoupeConfigurator {
       this.elements.previewPlaceholder.classList.remove('hidden');
     }
 
-    // Price per square meter
-    let sqmPrice = 0;
-    if (priceRaw) {
-      sqmPrice = parseFloat(priceRaw);
-    } else {
-      sqmPrice = parseFloat(firstVal.prix_public?.prix || 0);
-    }
+    // Sqm price
+    let sqmPrice = parseFloat(priceRaw) || parseFloat(firstVal.prix_public?.prix || 0);
     this.state.sqmPrice = sqmPrice;
     this.elements.sqmPriceLabel.textContent = `${sqmPrice.toFixed(2)} € / sq.m`;
 
@@ -269,7 +270,6 @@ class VarianceDecoupeConfigurator {
     if (laizes.length > 1) {
       this.elements.laizeGroup.classList.remove('hidden');
       if (rowLaizeSingle) rowLaizeSingle.classList.add('hidden');
-
       const laizeSelect = this.elements.laizeSelect;
       laizeSelect.innerHTML = '';
       laizes.forEach(l => {
@@ -279,7 +279,6 @@ class VarianceDecoupeConfigurator {
         laizeSelect.appendChild(opt);
       });
       this.state.selectedLaize = laizes[0];
-      this.calculatePrice();
     } else {
       this.elements.laizeGroup.classList.add('hidden');
       if (rowLaizeSingle) rowLaizeSingle.classList.remove('hidden');
@@ -288,7 +287,7 @@ class VarianceDecoupeConfigurator {
       this.state.selectedLaize = singleLaize;
     }
 
-    // Length (default)
+    // Default length
     const defaultLength = parseFloat(detail.longueur || firstVal.longueur || 100);
     this.elements.valLengthDefault.textContent = `${defaultLength} cm`;
     if (this.elements.lengthInput) {
@@ -297,9 +296,6 @@ class VarianceDecoupeConfigurator {
     }
 
     this.calculatePrice();
-    await this.translateButton();
-
-    card.classList.remove('hidden');
   }
 
   onLaizeChange(event) {
@@ -318,12 +314,10 @@ class VarianceDecoupeConfigurator {
     const laize = this.state.selectedLaize || 0;
     const length = this.state.selectedLength || 0;
     const sqmPrice = this.state.sqmPrice || 0;
-
     const area = (laize * length) / 10000;
     const total = area * sqmPrice;
     const roundedTotal = Math.round(total * 100) / 100;
     this.state.totalPrice = roundedTotal;
-
     const formattedTotal = roundedTotal.toLocaleString(
       this.getCurrentLang() === 'nl' ? 'nl-NL' : 'en-US',
       { minimumFractionDigits: 2, maximumFractionDigits: 2 }
@@ -331,24 +325,50 @@ class VarianceDecoupeConfigurator {
     this.elements.totalPriceLabel.textContent = `${formattedTotal} €`;
   }
 
-  showLoader(show) {
-    if (show) {
-      this.elements.detailLoader.classList.remove('hidden');
-      this.elements.detailCard.classList.add('hidden');
-    } else {
-      this.elements.detailLoader.classList.add('hidden');
-    }
+  showResultLoader() {
+    if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
+    this.elements.detailCard.classList.add('hidden');
+    this.elements.detailLoader.classList.remove('hidden');
+    this.elements.detailLoader.innerHTML = `<span class="rotating">⏳</span> ${this.translatedLabels?.loadingDetails || 'Loading details...'}`;
   }
 
   resetUI() {
+    if (this.resultPlaceholder) this.resultPlaceholder.classList.remove('hidden');
     this.elements.detailCard.classList.add('hidden');
+    this.elements.detailLoader.classList.add('hidden');
     this.elements.previewImg.classList.add('hidden');
     this.elements.previewPlaceholder.classList.remove('hidden');
+    this.elements.addToCartBtn.disabled = true;
     this.state.selectedItem = null;
     this.state.selectedLaize = null;
     this.state.selectedLength = 100;
     this.state.sqmPrice = 0;
     this.state.totalPrice = 0;
+  }
+
+  async translateButton() {
+    const btn = this.elements.addToCartBtn;
+    if (!btn) return;
+    const translatedText = this.translatedLabels?.addToCart || await this.translateStaticText("Add to Cart", "addToCart");
+    const svg = btn.querySelector('svg');
+    btn.innerHTML = '';
+    if (svg) btn.appendChild(svg);
+    btn.appendChild(document.createTextNode(' ' + translatedText));
+  }
+
+  registerEvents() {
+    if (this.elements.decoupeSelect) {
+      this.elements.decoupeSelect.addEventListener('change', (e) => this.onOptionChange(e));
+    }
+    if (this.elements.laizeSelect) {
+      this.elements.laizeSelect.addEventListener('change', (e) => this.onLaizeChange(e));
+    }
+    if (this.elements.lengthInput) {
+      this.elements.lengthInput.addEventListener('input', (e) => this.onLengthChange(e));
+    }
+    if (this.elements.addToCartBtn) {
+      this.elements.addToCartBtn.addEventListener('click', () => this.addToCart());
+    }
   }
 
   async addToCart() {
