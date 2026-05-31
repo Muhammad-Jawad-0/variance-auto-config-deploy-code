@@ -13,6 +13,7 @@ class VarianceDecoupeConfigurator {
     };
 
     this.elements = {
+      selectLoader: document.getElementById('decoupe-select-loader'),
       container: document.getElementById('variance-decoupe-configurator'),
       decoupeSelect: document.getElementById('decoupe-select'),
       detailCard: document.getElementById('decoupe-detail-card'),
@@ -39,7 +40,7 @@ class VarianceDecoupeConfigurator {
       const placeholderDiv = document.createElement('div');
       placeholderDiv.id = 'decoupe-result-placeholder';
       placeholderDiv.className = 'result-placeholder';
-      placeholderDiv.innerHTML = '<p>🔍 Please make a selection first</p>';
+      placeholderDiv.innerHTML = '<span class="rotating">⏳</span>';
       this.elements.detailCard.parentNode.insertBefore(placeholderDiv, this.elements.detailCard);
     }
     this.resultPlaceholder = document.getElementById('decoupe-result-placeholder');
@@ -54,16 +55,41 @@ class VarianceDecoupeConfigurator {
   }
 
   setInitialUI() {
-    // Initially hide detail card, show placeholder
+    // Hide detail card, show placeholder with hourglass
     this.elements.detailCard.classList.add('hidden');
     if (this.resultPlaceholder) this.resultPlaceholder.classList.remove('hidden');
     this.elements.addToCartBtn.disabled = true;
+
+    // Show image loader initially
+    if (this.elements.imageLoader) {
+      this.elements.imageLoader.classList.remove('hidden');
+      this.elements.imageLoader.innerHTML = '<span class="rotating">⏳</span>';
+    }
+    this.elements.previewImg.classList.add('hidden');
+    this.elements.previewPlaceholder.classList.add('hidden');
+
+    // Clear all static labels (they will be set after translation)
+    const labelIds = [
+      'decoupe-option-label', 'label-ref', 'label-laize', 'label-length',
+      'label-price', 'label-commercial', 'label-price-per-sqm', 'label-total-price',
+      'label-select-width', 'label-length-field', 'add-to-cart-text'
+    ];
+    labelIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '';
+    });
+    // Also set select placeholder to empty
+    const select = this.elements.decoupeSelect;
+    if (select && select.options[0]) select.options[0].text = '';
   }
 
   getCurrentLang() {
     return window.VarianceDecoupeConfig?.storeLanguage || 'en';
   }
 
+  // ------------------------------------------------------------
+  // Translation methods (calls the backend translation API)
+  // ------------------------------------------------------------
   async translateStaticText(text, key) {
     if (!this._staticCache) this._staticCache = {};
     const lang = this.getCurrentLang();
@@ -87,6 +113,7 @@ class VarianceDecoupeConfigurator {
 
   async translateStaticLabels() {
     this.translatedLabels = {
+      optionLabel: await this.translateStaticText("Option / Product Type", "optionLabel"),
       ref: await this.translateStaticText("Ref:", "ref"),
       laize: await this.translateStaticText("Breedte / laize:", "laize"),
       length: await this.translateStaticText("Lengte:", "length"),
@@ -98,25 +125,59 @@ class VarianceDecoupeConfigurator {
       lengthField: await this.translateStaticText("Car Film aantal (lengte, cm)", "lengthField"),
       chooseOption: await this.translateStaticText("Choose an option...", "chooseOption"),
       pleaseSelectFirst: await this.translateStaticText("Please make a selection first", "pleaseSelectFirst"),
-      addToCart: await this.translateStaticText("Add to Cart", "addToCart"),
-      loadingOptions: await this.translateStaticText("Loading options...", "loadingOptions"),
-      loadingDetails: await this.translateStaticText("Loading details...", "loadingDetails")
+      addToCart: await this.translateStaticText("Add to Cart", "addToCart")
     };
   }
 
+  async applyTranslatedTexts() {
+    const t = this.translatedLabels;
+    document.getElementById('decoupe-option-label').textContent = t.optionLabel;
+    document.getElementById('label-ref').textContent = t.ref;
+    document.getElementById('label-laize').textContent = t.laize;
+    document.getElementById('label-length').textContent = t.length;
+    document.getElementById('label-price').textContent = t.price;
+    document.getElementById('label-commercial').textContent = t.commercial;
+    document.getElementById('label-price-per-sqm').textContent = t.pricePerSqm;
+    document.getElementById('label-total-price').textContent = t.totalPrice;
+    document.getElementById('label-select-width').textContent = t.selectWidth;
+    document.getElementById('label-length-field').textContent = t.lengthField;
+    document.getElementById('add-to-cart-text').textContent = t.addToCart;
+
+    // Update select placeholder
+    const select = this.elements.decoupeSelect;
+    if (select && select.options[0]) select.options[0].text = t.chooseOption;
+
+    // Update placeholder message
+    if (this.resultPlaceholder) {
+      this.resultPlaceholder.innerHTML = `<p>🔍 ${t.pleaseSelectFirst}</p>`;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Loading logic (hourglass everywhere)
+  // ------------------------------------------------------------
   async loadOptions() {
-    // First, show spinner on select placeholder during translation
     const select = this.elements.decoupeSelect;
     select.disabled = true;
-    select.innerHTML = '<option value="" class="rotating">⏳</option>';
+    if (this.elements.selectLoader) this.elements.selectLoader.classList.remove('hidden');
 
-    // Translate static labels and placeholder text
-    await this.translateStaticLabels();
+    // Show hourglass in placeholder
     if (this.resultPlaceholder) {
-      this.resultPlaceholder.innerHTML = `<p>🔍 ${this.translatedLabels.pleaseSelectFirst}</p>`;
+      this.resultPlaceholder.classList.remove('hidden');
+      this.resultPlaceholder.innerHTML = '<span class="rotating">⏳</span>';
     }
-    // Update button text
-    await this.translateButton();
+
+    // Show image loader while loading options
+    if (this.elements.imageLoader) {
+      this.elements.imageLoader.classList.remove('hidden');
+      this.elements.imageLoader.innerHTML = '<span class="rotating">⏳</span>';
+    }
+    this.elements.previewImg.classList.add('hidden');
+    this.elements.previewPlaceholder.classList.add('hidden');
+
+    // First translate all static labels (this triggers the API call)
+    await this.translateStaticLabels();
+    await this.applyTranslatedTexts();
 
     try {
       const response = await fetch(`${this.apiBase}/decoupe-list?lang=${this.getCurrentLang()}`);
@@ -141,11 +202,15 @@ class VarianceDecoupeConfigurator {
         const firstId = options[0].id;
         this.elements.decoupeSelect.value = firstId;
         this.onOptionChange({ target: { value: firstId } });
+      } else {
+        select.disabled = false;
+        if (this.elements.selectLoader) this.elements.selectLoader.classList.add('hidden');
       }
     } catch (err) {
       console.error('[Decoupe] Error loading options:', err);
-      select.innerHTML = `<option value="">${this.translatedLabels.failedLoad || 'Failed to load'}</option>`;
+      select.innerHTML = `<option value="">${this.translatedLabels.chooseOption || 'Failed'}</option>`;
       select.disabled = false;
+      if (this.elements.selectLoader) this.elements.selectLoader.classList.add('hidden');
     }
   }
 
@@ -153,12 +218,13 @@ class VarianceDecoupeConfigurator {
     const select = this.elements.decoupeSelect;
     if (!select) return;
 
-    const defaultText = this.translatedLabels?.chooseOption || "Choose an option...";
+    const defaultText = this.translatedLabels.chooseOption || "";
     select.innerHTML = `<option value="">${defaultText}</option>`;
     if (!Array.isArray(this.state.options)) {
       console.error('[Decoupe] Options is not an array:', this.state.options);
       select.innerHTML += '<option disabled>Invalid data format</option>';
       select.disabled = false;
+      if (this.elements.selectLoader) this.elements.selectLoader.classList.add('hidden');
       return;
     }
 
@@ -169,6 +235,7 @@ class VarianceDecoupeConfigurator {
       select.appendChild(option);
     });
     select.disabled = false;
+    if (this.elements.selectLoader) this.elements.selectLoader.classList.add('hidden');
   }
 
   async onOptionChange(event) {
@@ -178,14 +245,12 @@ class VarianceDecoupeConfigurator {
       return;
     }
 
-    // Show loader in result area
     this.showResultLoader();
     this.elements.addToCartBtn.disabled = true;
 
     try {
       const response = await fetch(`${this.apiBase}/decoupe-detail/${id}?lang=${this.getCurrentLang()}`);
       if (!response.ok) throw new Error('Failed to fetch details');
-
       const detail = await response.json();
       this.state.selectedItem = detail;
       await this.renderItemDetails(detail);
@@ -197,13 +262,12 @@ class VarianceDecoupeConfigurator {
   }
 
   async renderItemDetails(detail) {
-    // Hide placeholder, show detail card
     if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
     this.elements.detailCard.classList.remove('hidden');
     this.elements.detailLoader.classList.add('hidden');
 
-    // Apply static labels to UI (already translated)
     const t = this.translatedLabels;
+    // Already applied labels, but ensure dynamic rows get correct labels
     document.querySelector('#row-ref .info-label').textContent = t.ref;
     document.querySelector('#row-laize-single .info-label').textContent = t.laize;
     document.querySelector('#row-length-default .info-label').textContent = t.length;
@@ -222,7 +286,6 @@ class VarianceDecoupeConfigurator {
     this.elements.valRef.textContent = reference;
     this.elements.valCommercialRef.textContent = commRef;
 
-    // Base price
     let basePriceValue = 'N/A';
     const priceRaw = detail['prix de base'] || detail.prix_de_base || firstVal['prix de base'] || firstVal.prix_de_base;
     if (priceRaw) {
@@ -238,28 +301,20 @@ class VarianceDecoupeConfigurator {
       this.elements.description.classList.add('hidden');
     }
 
-    // Image handling
     let imageUrl = '';
     const images = detail.images || firstVal.images;
     if (images && images.length > 0) {
       const firstImg = images[0];
       imageUrl = typeof firstImg === 'string' ? firstImg : firstImg.url || '';
     }
-    if (imageUrl) {
-      this.elements.previewImg.src = imageUrl;
-      this.elements.previewImg.classList.remove('hidden');
-      this.elements.previewPlaceholder.classList.add('hidden');
-    } else {
-      this.elements.previewImg.classList.add('hidden');
-      this.elements.previewPlaceholder.classList.remove('hidden');
-    }
+    
+    // Hide image loader and show image
+    this.hideImageLoaderAndShowImage(imageUrl);
 
-    // Sqm price
     let sqmPrice = parseFloat(priceRaw) || parseFloat(firstVal.prix_public?.prix || 0);
     this.state.sqmPrice = sqmPrice;
     this.elements.sqmPriceLabel.textContent = `${sqmPrice.toFixed(2)} € / sq.m`;
 
-    // Width (Laize)
     const laizeRaw = detail.laize || firstVal.laize || '';
     let laizes = [];
     if (laizeRaw) {
@@ -287,7 +342,6 @@ class VarianceDecoupeConfigurator {
       this.state.selectedLaize = singleLaize;
     }
 
-    // Default length
     const defaultLength = parseFloat(detail.longueur || firstVal.longueur || 100);
     this.elements.valLengthDefault.textContent = `${defaultLength} cm`;
     if (this.elements.lengthInput) {
@@ -329,31 +383,77 @@ class VarianceDecoupeConfigurator {
     if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
     this.elements.detailCard.classList.add('hidden');
     this.elements.detailLoader.classList.remove('hidden');
-    this.elements.detailLoader.innerHTML = `<span class="rotating">⏳</span> ${this.translatedLabels?.loadingDetails || 'Loading details...'}`;
+    this.elements.detailLoader.innerHTML = '<span class="rotating">⏳</span>';
+
+    // Show loading spinner in image area too
+    this.showImageLoader();
+  }
+
+  // Add new method to show image loader
+  showImageLoader() {
+    // Hide image and placeholder, show spinner
+    this.elements.previewImg.classList.add('hidden');
+    this.elements.previewPlaceholder.classList.add('hidden');
+
+    let imageLoader = this.elements.imageLoader;
+    if (!imageLoader) {
+        imageLoader = document.getElementById('decoupe-image-loading');
+        this.elements.imageLoader = imageLoader;
+    }
+    if (imageLoader) {
+        imageLoader.classList.remove('hidden');
+        imageLoader.innerHTML = '<span class="rotating">⏳</span>';
+        
+        // ✅ Center the loader
+        imageLoader.style.position = 'absolute';
+        imageLoader.style.top = '50%';
+        imageLoader.style.left = '50%';
+        imageLoader.style.transform = 'translate(-50%, -50%)';
+        imageLoader.style.display = 'flex';
+        imageLoader.style.alignItems = 'center';
+        imageLoader.style.justifyContent = 'center';
+        imageLoader.style.zIndex = '10';
+    }
+}
+
+  // Add new method to hide image loader and show image
+  hideImageLoaderAndShowImage(imageUrl) {
+    // Hide loader
+    if (this.elements.imageLoader) {
+      this.elements.imageLoader.classList.add('hidden');
+      this.elements.imageLoader.innerHTML = '';
+    }
+
+    // Show image
+    if (imageUrl) {
+      this.elements.previewImg.src = imageUrl;
+      this.elements.previewImg.classList.remove('hidden');
+      this.elements.previewPlaceholder.classList.add('hidden');
+    } else {
+      this.elements.previewImg.classList.add('hidden');
+      this.elements.previewPlaceholder.classList.remove('hidden');
+    }
   }
 
   resetUI() {
     if (this.resultPlaceholder) this.resultPlaceholder.classList.remove('hidden');
     this.elements.detailCard.classList.add('hidden');
     this.elements.detailLoader.classList.add('hidden');
+    
+    // Reset image area
     this.elements.previewImg.classList.add('hidden');
     this.elements.previewPlaceholder.classList.remove('hidden');
+    if (this.elements.imageLoader) {
+      this.elements.imageLoader.classList.add('hidden');
+      this.elements.imageLoader.innerHTML = '';
+    }
+    
     this.elements.addToCartBtn.disabled = true;
     this.state.selectedItem = null;
     this.state.selectedLaize = null;
     this.state.selectedLength = 100;
     this.state.sqmPrice = 0;
     this.state.totalPrice = 0;
-  }
-
-  async translateButton() {
-    const btn = this.elements.addToCartBtn;
-    if (!btn) return;
-    const translatedText = this.translatedLabels?.addToCart || await this.translateStaticText("Add to Cart", "addToCart");
-    const svg = btn.querySelector('svg');
-    btn.innerHTML = '';
-    if (svg) btn.appendChild(svg);
-    btn.appendChild(document.createTextNode(' ' + translatedText));
   }
 
   registerEvents() {
@@ -398,7 +498,7 @@ class VarianceDecoupeConfigurator {
 
     const btn = this.elements.addToCartBtn;
     const originalHTML = btn.innerHTML;
-    btn.innerHTML = '⏳ Adding...';
+    btn.innerHTML = '<span class="rotating">⏳</span>';
     btn.disabled = true;
 
     try {

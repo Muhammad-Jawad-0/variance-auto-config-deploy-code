@@ -7,12 +7,11 @@
   <div class="decoupe-container">
     <!-- Left Column: Image Preview -->
     <div class="decoupe-preview-pane">
-      <div id="decoupe-image-loading" class="preview-spinner hidden">⏳</div>
+      <div id="decoupe-image-loading" class="preview-spinner hidden"></div>
       <div id="decoupe-image-wrapper" class="preview-image-wrapper">
-        <img id="decoupe-preview-img" src="" alt="Product Preview" class="hidden">
+        <img id="decoupe-preview-img" src="" alt="" class="hidden">
         <div id="decoupe-preview-placeholder" class="preview-placeholder">
-          <span>📏</span>
-          <p>Select an option to view image</p>
+          <div class="loader-spinner"></div>
         </div>
       </div>
     </div>
@@ -23,10 +22,13 @@
 
       <!-- Option Selector -->
       <div class="decoupe-field-group">
-        <label for="decoupe-select" class="field-label">Option / Product Type</label>
-        <div class="decoupe-select-wrapper">
-          <select id="decoupe-select">
-            <option value="">Choose an option...</option>
+        <label id="decoupe-option-label" class="field-label"></label>
+        <div class="decoupe-select-wrapper" id="decoupe-select-wrapper">
+          <div id="decoupe-select-loader" class="inline-loader hidden">
+            <div class="loader-spinner"></div>
+          </div>
+          <select id="decoupe-select" disabled>
+            <option value=""></option>
           </select>
           <span class="select-chevron">▼</span>
         </div>
@@ -34,52 +36,45 @@
 
       <!-- Loading State -->
       <div id="decoupe-detail-loading" class="detail-loader hidden">
-        <span>⏳ Loading item details...</span>
+        <div class="loader-spinner"></div>
       </div>
 
       <!-- Details & Calculation Section -->
       <div id="decoupe-detail-card" class="decoupe-detail-card hidden">
-        <!-- Info Rows -->
         <div class="decoupe-info-grid">
           <div class="info-row" id="row-ref">
-            <span class="info-label">Ref:</span>
+            <span id="label-ref" class="info-label"></span>
             <span class="info-value" id="val-ref">N/A</span>
           </div>
-
           <div class="info-row" id="row-laize-single">
-            <span class="info-label">Breedte / laize:</span>
+            <span id="label-laize" class="info-label"></span>
             <span class="info-value" id="val-laize-single">N/A</span>
           </div>
-
           <div class="info-row" id="row-length-default">
-            <span class="info-label">Lengte:</span>
+            <span id="label-length" class="info-label"></span>
             <span class="info-value" id="val-length-default">N/A</span>
           </div>
-
           <div class="info-row" id="row-price">
-            <span class="info-label">Price:</span>
+            <span id="label-price" class="info-label"></span>
             <span class="info-value" id="val-price">N/A</span>
           </div>
-
           <div class="info-row" id="row-commercial-ref">
-            <span class="info-label">Commercial Ref:</span>
+            <span id="label-commercial" class="info-label"></span>
             <span class="info-value" id="val-commercial-ref">N/A</span>
           </div>
         </div>
 
-        <!-- Dynamic Laize Input (Only shown for multi-laize products) -->
         <div class="decoupe-field-group hidden" id="decoupe-laize-group">
-          <label for="decoupe-laize-select" class="field-label">Select Width (Laize)</label>
+          <label id="label-select-width" class="field-label"></label>
           <div class="decoupe-select-wrapper">
             <select id="decoupe-laize-select"></select>
             <span class="select-chevron">▼</span>
           </div>
         </div>
 
-        <!-- Length Input (Aantal / Quantity) -->
         <div class="decoupe-field-group" id="decoupe-length-group">
           <div class="length-label-row">
-            <label for="decoupe-length-input" class="field-label">Car Film aantal (lengte, cm)</label>
+            <label id="label-length-field" class="field-label"></label>
           </div>
           <div class="length-input-wrapper">
             <input type="number" id="decoupe-length-input" value="100" min="1" step="1">
@@ -87,26 +82,24 @@
           </div>
         </div>
 
-        <!-- Pricing Card -->
         <div class="decoupe-pricing-card">
           <div class="price-line">
-            <span class="price-label">Price per sq.m</span>
+            <span id="label-price-per-sqm" class="price-label"></span>
             <span class="price-value" id="decoupe-sqm-price">0.00 €</span>
           </div>
           <div class="total-price-line">
-            <span class="total-label">Total Price</span>
+            <span id="label-total-price" class="total-label"></span>
             <div class="price-box">
               <span class="total-price-value" id="decoupe-total-price">0.00 €</span>
             </div>
           </div>
         </div>
 
-        <!-- Add to Cart Button -->
-        <button id="decoupe-add-to-cart-btn" class="decoupe-add-to-cart-btn">
+        <button id="decoupe-add-to-cart-btn" class="decoupe-add-to-cart-btn" disabled>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V16.5M17 16.5C17 17.9 15.9 19 14.5 19C13.1 19 12 17.9 12 16.5C12 15.1 13.1 14 14.5 14C15.9 14 17 15.1 17 16.5ZM9 16.5C9 17.9 7.9 19 6.5 19C5.1 19 4 17.9 4 16.5C4 15.1 5.1 14 6.5 14C7.9 14 9 15.1 9 16.5Z" stroke="currentColor" stroke-width="1.5"/>
           </svg>
-          Add to Cart
+          <span id="add-to-cart-text"></span>
         </button>
       </div>
     </div>
