@@ -6,7 +6,9 @@ class VarianceConfigurator {
             selectedDeclinaison: null,
             selectedKit: null,
             selectedFilm: null,
-            filmDetail: null
+            filmDetail: null,
+            realFilmId: null,
+            filmCustomId: null
         };
 
         this.apiBase = '/apps/customizer';
@@ -48,11 +50,9 @@ class VarianceConfigurator {
     }
 
     async translateAllStaticTexts() {
-        // Show rotating spinner (no text) during translation
         const stepTexts = document.querySelectorAll('.step-text');
         stepTexts.forEach((el, idx) => {
             el.textContent = '⏳';
-            // Steps 1,2,5 ko rotating, steps 3 aur 4 ko static (index 2 and 3)
             if (idx !== 2 && idx !== 3) {
                 el.classList.add('rotating');
             }
@@ -93,7 +93,6 @@ class VarianceConfigurator {
             btn.disabled = true;
         }
 
-        // Fetch translations
         const translations = {
             step1: await this.translateStaticText("Select Brand", "step1"),
             step2: await this.translateStaticText("Select Model", "step2"),
@@ -118,7 +117,6 @@ class VarianceConfigurator {
         };
         this.translations = translations;
 
-        // Apply translated texts (remove spinner)
         stepTexts.forEach((el, idx) => {
             const keys = ['step1', 'step2', 'step3', 'step4', 'step5'];
             if (idx < keys.length) {
@@ -268,7 +266,6 @@ class VarianceConfigurator {
             name: brand.titre || brand.label || brand.name,
             image: brand.images?.[0]?.url || ''
         };
-        const chooseText = this.translations?.chooseBrand || "Choose a brand";
         trigger.innerHTML = `
             ${this.state.selectedBrand.image ? `<img src="${this.state.selectedBrand.image}" style="width:30px;height:30px;object-fit:contain;">` : ''}
             <span>${this.state.selectedBrand.name}</span>
@@ -323,6 +320,7 @@ class VarianceConfigurator {
         this.state.selectedBrand = null;
         this.updateBrandPreview(null, null);
         this.hideModelSection();
+        this._originalBrandImage = null;
         this.updateProgress(1);
     }
 
@@ -392,6 +390,9 @@ class VarianceConfigurator {
     resetModelSelection() {
         this.state.selectedModel = null;
         if (this.elements.modelImagePreview) this.elements.modelImagePreview.classList.add('hidden');
+        if (this._originalBrandImage && this.elements.brandPreview) {
+            this.elements.brandPreview.innerHTML = this._originalBrandImage;
+        }
         this.hideDeclinaisonSection();
         this.hideKitSection();
         this.hideTintSection();
@@ -427,7 +428,14 @@ class VarianceConfigurator {
             const card = document.createElement('div');
             card.className = 'tile-card';
             card.dataset.id = item.id || item.declinaison_id || item.vitre_id;
-            const imageUrl = item.images?.[0]?.url || item.image_url;
+            let imageUrl = null;
+            if (item.images && item.images.length > 0) {
+                imageUrl = item.images[0].url || item.images[0];
+            } else if (item.image_url) {
+                imageUrl = item.image_url;
+            } else if (item.image) {
+                imageUrl = item.image;
+            }
             let label = item.titre || item.label || item.name;
             let badge = '';
             if (type === 'declinaison' && item.annee_debut) {
@@ -439,7 +447,7 @@ class VarianceConfigurator {
                 else label = badge;
             }
             card.innerHTML = `
-                ${imageUrl ? `<img src="${imageUrl}" alt="${label}" loading="lazy">` : `<div style="height:80px; background:#f1f5f9; border-radius:10px; display:flex; align-items:center; justify-content:center;"><span>${type === 'model' ? '🚙' : '🚗'}</span></div>`}
+                ${imageUrl ? `<img src="${imageUrl}" alt="${label}" loading="lazy" style="width:100%; height:120px; object-fit:cover; border-radius:10px;">` : `<div style="height:80px; background:#f1f5f9; border-radius:10px; display:flex; align-items:center; justify-content:center;"><span>${type === 'kit' ? '🪟' : (type === 'model' ? '🚙' : '🚗')}</span></div>`}
                 <p class="tile-label">${label || 'Option'}</p>
                 ${badge && type === 'declinaison' ? `<span class="tile-badge">${badge}</span>` : ''}
             `;
@@ -453,7 +461,20 @@ class VarianceConfigurator {
     }
 
     onDeclinaisonSelect(declinaison) {
-        this.state.selectedDeclinaison = { id: declinaison.id || declinaison.declinaison_id, label: declinaison.titre || declinaison.label };
+        this.state.selectedDeclinaison = {
+            id: declinaison.id || declinaison.declinaison_id,
+            label: declinaison.titre || declinaison.label
+        };
+        const variantImageUrl = declinaison.images?.[0]?.url || declinaison.image_url || '';
+        if (variantImageUrl && this.elements.brandPreview) {
+            if (!this._originalBrandImage) {
+                this._originalBrandImage = this.elements.brandPreview.innerHTML;
+            }
+            this.elements.brandPreview.innerHTML = `<div class="variant-card" style="width:100%; text-align:center;">
+                <img class="variant-card__image" src="${variantImageUrl}" alt="${this.state.selectedDeclinaison.label}" loading="lazy" style="max-width:100%; max-height:200px; object-fit:contain;">
+                <p class="variant-card__name">${this.state.selectedDeclinaison.label}</p>
+            </div>`;
+        }
         this.updateProgress(4);
         this.showKitSection();
         this.loadKits(this.state.selectedDeclinaison.id);
@@ -482,7 +503,20 @@ class VarianceConfigurator {
     }
 
     onKitSelect(kit) {
-        this.state.selectedKit = { id: kit.id || kit.vitre_id, label: kit.titre || kit.label };
+        let kitImageUrl = '';
+        if (kit.images && kit.images.length > 0) {
+            kitImageUrl = kit.images[0].url || kit.images[0];
+        } else if (kit.image_url) {
+            kitImageUrl = kit.image_url;
+        } else if (kit.image) {
+            kitImageUrl = kit.image;
+        }
+        this.state.selectedKit = {
+            id: kit.id || kit.vitre_id,
+            label: kit.titre || kit.label,
+            imageUrl: kitImageUrl,
+            originalData: kit
+        };
         this.updateProgress(5);
         this.showTintSection();
         this.loadFilms();
@@ -496,38 +530,114 @@ class VarianceConfigurator {
         if (!filmSelect) return;
         filmSelect.disabled = true;
         filmSelect.innerHTML = `<option value="" class="rotating">⏳</option>`;
+
         try {
             const response = await fetch(`${this.apiBase}/films?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&lang=${this.getCurrentLang()}`);
             const data = await response.json();
             const films = data?.liste?.valeurs || data?.films || data || [];
+
+            // Define your desired films with their patterns and custom labels
+            const desiredFilms = [
+                { customLabel: "Donker 5%", patterns: ['dark solar film 5', 'dark 5%', 'donker 5%'], customId: 'film_donker_5' },
+                { customLabel: "Extreem helder 70%", patterns: ['extreme clear 70 solar film', 'extreem helder 70%', '70%'], customId: 'film_extreem_helder_70' },
+                { customLabel: "Licht helder 35%", patterns: ['light smoke solar film 35', 'licht helder 35%', '35%'], customId: 'film_licht_helder_35' },
+                { customLabel: "Medium 25%", patterns: ['medium solar film 25', 'medium 25%', '25%'], customId: 'film_medium_25' },
+                { customLabel: "Medium plus 15%", patterns: ['medium solar film plus 15', 'medium plus 15%', '15%'], customId: 'film_medium_plus_15' }
+            ];
+
+            const matchedOptions = [];
+
+            for (const desired of desiredFilms) {
+                // Try to find a film from API that matches any pattern
+                const foundFilm = films.find(film => {
+                    const title = (film.titre || film.label || film.name || '').toLowerCase();
+                    return desired.patterns.some(pattern => title.includes(pattern.toLowerCase()));
+                });
+
+                if (foundFilm) {
+                    matchedOptions.push({
+                        realFilmId: foundFilm.id,
+                        customId: desired.customId,
+                        label: desired.customLabel,   // show your custom label
+                        originalTitle: foundFilm.titre
+                    });
+                } else {
+                    // Fallback – still show the option but without a real film ID
+                    // (details will not be fetched from API)
+                    matchedOptions.push({
+                        realFilmId: null,
+                        customId: desired.customId,
+                        label: desired.customLabel,
+                        originalTitle: desired.customLabel
+                    });
+                    console.warn(`Film not found in API: ${desired.customLabel}`);
+                }
+            }
+
             const chooseText = this.translations?.chooseTint || "Choose a tint";
             filmSelect.innerHTML = `<option value="">${chooseText}</option>`;
-            films.forEach(film => {
+
+            for (const opt of matchedOptions) {
                 const option = document.createElement('option');
-                option.value = film.id || film.film_id;
-                option.textContent = film.titre || film.label || film.name;
+                // Use realFilmId as the value if available, otherwise fallback to customId
+                option.value = opt.realFilmId || opt.customId;
+                option.textContent = opt.label;
+                option.dataset.realFilmId = opt.realFilmId;
+                option.dataset.customId = opt.customId;
+                option.dataset.label = opt.label;
+                filmSelect.appendChild(option);
+            }
+
+            filmSelect.disabled = false;
+        } catch (error) {
+            console.error('Failed to load films from API, using hardcoded options:', error);
+            // Ultimate fallback – hardcoded options without real film IDs
+            const fallbackFilms = [
+                { customId: "film_donker_5", label: "Donker 5%" },
+                { customId: "film_extreem_helder_70", label: "Extreem helder 70%" },
+                { customId: "film_licht_helder_35", label: "Licht helder 35%" },
+                { customId: "film_medium_25", label: "Medium 25%" },
+                { customId: "film_medium_plus_15", label: "Medium plus 15%" }
+            ];
+            const chooseText = this.translations?.chooseTint || "Choose a tint";
+            filmSelect.innerHTML = `<option value="">${chooseText}</option>`;
+            fallbackFilms.forEach(film => {
+                const option = document.createElement('option');
+                option.value = film.customId;
+                option.textContent = film.label;
+                option.dataset.realFilmId = null;
+                option.dataset.customId = film.customId;
+                option.dataset.label = film.label;
                 filmSelect.appendChild(option);
             });
             filmSelect.disabled = false;
-        } catch (error) {
-            console.error('Failed to load films:', error);
-            filmSelect.innerHTML = '<option value="">Failed to load tints</option>';
         }
     }
 
-    async onFilmChange(event) {
-        const filmId = event.target.value;
-        if (!filmId) {
-            this.resetResultToPlaceholder();
-            return;
-        }
-        this.state.selectedFilm = filmId;
-        this.showResultLoader();
+async onFilmChange(event) {
+    const selectedOption = event.target.selectedOptions[0];
+    const realFilmId = selectedOption.dataset.realFilmId;
+    const customId = selectedOption.dataset.customId;
+    const filmLabel = selectedOption.dataset.label;
+
+    if (!realFilmId && !customId) {
+        this.resetResultToPlaceholder();
+        return;
+    }
+
+    this.showResultLoader();
+    this.elements.addToCartBtn.disabled = true;
+
+    if (realFilmId && realFilmId !== 'null') {
+        // ✅ Real film ID exists – fetch details from API
         try {
-            const response = await fetch(`${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${filmId}&lang=${this.getCurrentLang()}`);
-            const data = await response.json();
-            this.state.filmDetail = data;
-            await this.showResult(data);
+            const response = await fetch(`${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${realFilmId}&lang=${this.getCurrentLang()}`);
+            if (!response.ok) throw new Error('Failed to fetch film details');
+            const detail = await response.json();
+            this.state.filmDetail = detail;
+            this.state.realFilmId = realFilmId;
+            this.state.filmCustomId = customId;
+            await this.showResult(detail, customId);
             this.updateProgress(5, true);
             this.elements.addToCartBtn.disabled = false;
         } catch (error) {
@@ -535,13 +645,31 @@ class VarianceConfigurator {
             this.resetResultToPlaceholder();
             this.elements.addToCartBtn.disabled = true;
         }
+    } else {
+        // Fallback (no real film ID) – use hardcoded data (should not happen normally)
+        console.warn('No real film_id, using fallback data for PDF only');
+        const fallbackData = {
+            reference: filmLabel,
+            rejet_UV: '99.0',
+            protection_solaire: '60.0',
+            transmission_lumiere: '35.0',
+            prix_public: { prix: 0 },
+            titre: filmLabel,
+            custom_id: customId
+        };
+        this.state.filmDetail = fallbackData;
+        this.state.filmCustomId = customId;
+        await this.showResult(fallbackData, customId);
+        this.updateProgress(5, true);
+        this.elements.addToCartBtn.disabled = false;
     }
+}
 
     showResultLoader() {
         if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
         if (this.elements.resultContent) {
             this.elements.resultContent.classList.remove('hidden');
-            this.elements.resultContent.innerHTML = `<div class=" rotating">⏳</div>`;
+            this.elements.resultContent.innerHTML = `<div class="rotating">⏳</div>`;
         }
         this.elements.addToCartBtn.disabled = true;
     }
@@ -556,33 +684,66 @@ class VarianceConfigurator {
         this.state.filmDetail = null;
     }
 
-    async showResult(detail) {
-        const resultBox = this.elements.resultBox;
+    async showResult(detail, forcedCustomId = null) {
         const resultContent = this.elements.resultContent;
-        if (!resultBox || !resultContent) return;
+        if (!resultContent) return;
 
         if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
         resultContent.classList.remove('hidden');
 
         const t = this.translations || {};
-        const refLabel = t.ref || await this.translateStaticText("Ref:", "ref");
-        const uvLabel = t.uv || await this.translateStaticText("UV", "uv");
-        const solarLabel = t.solar || await this.translateStaticText("Solar", "solar");
-        const lightLabel = t.light || await this.translateStaticText("Light", "light");
-        const techSheetLabel = t.techSheet || await this.translateStaticText("Technical Sheet", "techSheet");
-        const noPDFLabel = t.noPDF || await this.translateStaticText("No PDF", "noPDF");
+        const refLabel = t.ref || "Ref:";
+        const uvLabel = t.uv || "UV";
+        const solarLabel = t.solar || "Solar";
+        const lightLabel = t.light || "Light";
+        const techSheetLabel = t.techSheet || "Technical Sheet";
+        const noPDFLabel = t.noPDF || "No PDF";
 
         const firstValue = detail?.liste?.valeurs?.[0] || detail;
         const reference = detail?.reference || firstValue?.reference || 'N/A';
-        const specs = {
-            uv: firstValue?.rejet_UV || detail?.rejet_UV,
-            solar: firstValue?.protection_solaire || detail?.protection_solaire,
-            light: firstValue?.transmission_lumiere || detail?.transmission_lumiere
-        };
-        const schemeImages = detail?.images || firstValue?.images || [];
-        const pdfUrl = detail?.ficheTechnique?.url || firstValue?.ficheTechnique?.url;
+        const uv = firstValue?.rejet_UV || detail?.rejet_UV || '';
+        const solar = firstValue?.protection_solaire || detail?.protection_solaire || '';
+        const light = firstValue?.transmission_lumiere || detail?.transmission_lumiere || '';
         const apiPrice = firstValue?.prix_public?.prix || detail?.prix_public?.prix || 0;
         const currentLang = this.getCurrentLang();
+
+        let customId = forcedCustomId || this.state.filmCustomId;
+        if (!customId && detail.custom_id) customId = detail.custom_id;
+        if (!customId && detail.titre) {
+            const titleLower = detail.titre.toLowerCase();
+            if (titleLower.includes('donker') || titleLower.includes('dark')) customId = 'film_donker_5';
+            else if (titleLower.includes('extreem') || titleLower.includes('70')) customId = 'film_extreem_helder_70';
+            else if (titleLower.includes('licht') || titleLower.includes('35')) customId = 'film_licht_helder_35';
+            else if (titleLower.includes('medium') && titleLower.includes('25')) customId = 'film_medium_25';
+            else if (titleLower.includes('medium plus') || titleLower.includes('15')) customId = 'film_medium_plus_15';
+        }
+
+        let pdfUrl = null;
+        let finalTechSheetLabel = techSheetLabel;
+
+        if (customId) {
+            try {
+                const mappingRes = await fetch(`${this.apiBase}/pdf-mapping?custom_id=${customId}&lang=${currentLang}`);
+                const mappingData = await mappingRes.json();
+                if (mappingData.success && mappingData.pdfUrl) {
+                    pdfUrl = mappingData.pdfUrl;
+                    finalTechSheetLabel = mappingData.pdfName || techSheetLabel;
+                }
+            } catch (err) {
+                console.warn("Failed to fetch PDF mapping:", err);
+            }
+        }
+
+        let kitImageHtml = '';
+        if (this.state.selectedKit && this.state.selectedKit.imageUrl) {
+            kitImageHtml = `<div class="kit-thumbnail" style="display: inline-block; margin-left: 10px;"><img src="${this.state.selectedKit.imageUrl}" alt="Kit" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; vertical-align: middle;"></div>`;
+        } else if (this.state.selectedKit && this.state.selectedKit.originalData) {
+            const kitData = this.state.selectedKit.originalData;
+            const imgUrl = kitData?.images?.[0]?.url || kitData?.image_url || '';
+            if (imgUrl) {
+                kitImageHtml = `<div class="kit-thumbnail" style="display: inline-block; margin-left: 10px;"><img src="${imgUrl}" alt="Kit" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; vertical-align: middle;"></div>`;
+            }
+        }
 
         resultContent.innerHTML = `
         <div class="result-compact">
@@ -591,15 +752,15 @@ class VarianceConfigurator {
                     <span class="label">🔖 ${refLabel}</span>
                     <span>${reference}</span>
                 </div>
-                <div class="row specs">
-                    ${specs.uv ? `<span>${uvLabel} ${specs.uv}%</span>` : ''}
-                    ${specs.solar ? `<span>${solarLabel} ${specs.solar}%</span>` : ''}
-                    ${specs.light ? `<span>${lightLabel} ${specs.light}%</span>` : ''}
+                <div class="row specs" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    ${uv ? `<span>${uvLabel} ${uv}%</span>` : ''}
+                    ${solar ? `<span>${solarLabel} ${solar}%</span>` : ''}
+                    ${light ? `<span>${lightLabel} ${light}%</span>` : ''}
+                    ${kitImageHtml}
                 </div>
-                ${schemeImages.length ? `<div class="row images">${schemeImages.map(img => `<img src="${img.url || img}">`).join('')}</div>` : ''}
             </div>
             <div class="compact-section">
-                ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="pdf-link">📄 ${techSheetLabel}</a>` : `<span class="no-pdf">${noPDFLabel}</span>`}
+                ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="pdf-link">📄 ${finalTechSheetLabel}</a>` : `<span class="no-pdf">${noPDFLabel}</span>`}
             </div>
             <div class="compact-price">
                 <strong>€${(parseFloat(apiPrice || 0) + parseFloat(window.VarianceConfig.productPrice || 0)).toLocaleString(currentLang === 'nl' ? 'nl-NL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
@@ -646,8 +807,8 @@ class VarianceConfigurator {
             filmImages: filmValue?.images?.map(img => img.url || img) || [],
             modelImageUrl: this.state.selectedModel?.image || '',
             brandImageUrl: this.state.selectedBrand?.image || '',
-            technicalSheetUrl: filmValue?.ficheTechnique?.url || '',
-            technicalSheetName: filmValue?.ficheTechnique?.name || 'Technical Sheet',
+            technicalSheetUrl: '',
+            technicalSheetName: 'Technical Sheet',
         };
 
         const cartProperties = {
@@ -660,7 +821,6 @@ class VarianceConfigurator {
             'UV Protection': configData.uv ? `${configData.uv}%` : '',
             'Solar Protection': configData.solar ? `${configData.solar}%` : '',
             'Light Transmission': configData.light ? `${configData.light}%` : '',
-            'Technical Sheet': configData.technicalSheetUrl,
             'Configuration ID': `${configData.marque_id}-${configData.modele_id}-${configData.declinaison_id}-${configData.vitre_id}-${configData.film_id}`,
         };
         Object.keys(cartProperties).forEach(k => { if (!cartProperties[k]) delete cartProperties[k]; });

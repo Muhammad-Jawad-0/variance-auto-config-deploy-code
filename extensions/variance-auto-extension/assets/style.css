@@ -956,3 +956,12 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Hover effect for variant image */
+.variant-card {
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+.variant-card:hover {
+    transform: scale(1.02);
+}

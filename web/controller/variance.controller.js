@@ -117,44 +117,67 @@ export const getFilmDetail = async (req, res) => {
 };
 
 export const getPdfMapping = async (req, res) => {
-    const { film_id, label, lang = 'en' } = req.query;
+    const { film_id, label, custom_id, lang = 'en' } = req.query;
 
-    if (!film_id && !label) {
+    if (!film_id && !label && !custom_id) {
         return res.status(400).json({
-            error: "Missing required parameters: film_id or label"
+            error: "Missing required parameters: film_id, label or custom_id"
         });
     }
 
     try {
-        const pdfMapping = {
-            "55": {
-                url: "https://your-cdn.com/tech-sheets/55_prestige_tint.pdf",
-                name: "Prestige Series Technical Sheet"
+        // ✅ New mapping based on custom_id
+        const pdfMappingById = {
+            "film_donker_5": {
+                url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Donker_5.pdf?v=1780323478",
+                name: "Donker 5% Technical Sheet"
             },
-            "67": {
-                url: "https://your-cdn.com/tech-sheets/67_carbon_tint.pdf",
-                name: "Carbon Series Technical Sheet"
+            "film_extreem_helder_70": {
+                url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Extreem_helder_70.pdf?v=1780323516",
+                name: "Extreem helder 70% Technical Sheet"
             },
-            "89": {
-                url: "https://your-cdn.com/tech-sheets/89_ceramic_tint.pdf",
-                name: "Ceramic Series Technical Sheet"
+            "film_licht_helder_35": {
+                url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Licht_helder_35.pdf?v=1780323580",
+                name: "Licht helder 35% Technical Sheet"
             },
-            "default": {
-                url: null,
-                name: null
+            "film_medium_25": {
+                url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_25.pdf?v=1780323606",
+                name: "Medium 25% Technical Sheet"
+            },
+            "film_medium_plus_15": {
+                url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_plus_15.pdf?v=1780323640",
+                name: "Medium plus 15% Technical Sheet"
             }
         };
 
-        let pdfInfo = pdfMapping[film_id];
-
-        if (!pdfInfo && label) {
+        let pdfInfo = null;
+        
+        // First try by custom_id
+        if (custom_id && pdfMappingById[custom_id]) {
+            pdfInfo = pdfMappingById[custom_id];
+        }
+        // Then try by film_id (original API ID)
+        else if (film_id) {
+            const oldMapping = {
+                "55": pdfMappingById["film_donker_5"],
+                "67": pdfMappingById["film_extreem_helder_70"],
+                "89": pdfMappingById["film_medium_25"]
+            };
+            pdfInfo = oldMapping[film_id];
+        }
+        // Finally try by label (fallback)
+        else if (label) {
             const labelLower = label.toLowerCase();
-            if (labelLower.includes("prestige")) {
-                pdfInfo = pdfMapping["55"];
-            } else if (labelLower.includes("carbon")) {
-                pdfInfo = pdfMapping["67"];
-            } else if (labelLower.includes("ceramic")) {
-                pdfInfo = pdfMapping["89"];
+            if (labelLower.includes("donker") || labelLower.includes("dark")) {
+                pdfInfo = pdfMappingById["film_donker_5"];
+            } else if (labelLower.includes("extreem") || labelLower.includes("helder") || labelLower.includes("70")) {
+                pdfInfo = pdfMappingById["film_extreem_helder_70"];
+            } else if (labelLower.includes("licht") || labelLower.includes("35")) {
+                pdfInfo = pdfMappingById["film_licht_helder_35"];
+            } else if (labelLower.includes("medium 25") || labelLower.includes("25%")) {
+                pdfInfo = pdfMappingById["film_medium_25"];
+            } else if (labelLower.includes("medium plus") || labelLower.includes("15%")) {
+                pdfInfo = pdfMappingById["film_medium_plus_15"];
             }
         }
 
@@ -164,6 +187,7 @@ export const getPdfMapping = async (req, res) => {
                 success: true,
                 pdfUrl: pdfInfo.url,
                 pdfName: pdfInfo.name,
+                customId: custom_id,
                 filmId: film_id,
                 filmLabel: label
             };
@@ -177,7 +201,6 @@ export const getPdfMapping = async (req, res) => {
 
         const translatedResult = await translateDeep(result, lang);
         return res.json(translatedResult);
-
     } catch (error) {
         console.error("PDF mapping error:", error);
         return res.status(500).json({

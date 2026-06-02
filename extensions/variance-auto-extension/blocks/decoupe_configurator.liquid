@@ -18,7 +18,7 @@
 
     <!-- Right Column: Controls -->
     <div class="decoupe-control-pane">
-      <h2 class="decoupe-title">{{ product.title }}</h2>
+      {% comment %} <h2 class="decoupe-title">{{ product.title }}</h2> {% endcomment %}
 
       <!-- Option Selector -->
       <div class="decoupe-field-group">
@@ -43,24 +43,24 @@
       <div id="decoupe-detail-card" class="decoupe-detail-card hidden">
         <div class="decoupe-info-grid">
           <div class="info-row" id="row-ref">
-            <span id="label-ref" class="info-label"></span>
+            <span id="label-ref" class="info-label text-bold"></span>
             <span class="info-value" id="val-ref">N/A</span>
           </div>
           <div class="info-row" id="row-laize-single">
-            <span id="label-laize" class="info-label"></span>
+            <span id="label-laize" class="info-label text-bold"></span>
             <span class="info-value" id="val-laize-single">N/A</span>
           </div>
           <div class="info-row" id="row-length-default">
-            <span id="label-length" class="info-label"></span>
+            <span id="label-length" class="info-label text-bold"></span>
             <span class="info-value" id="val-length-default">N/A</span>
           </div>
           <div class="info-row" id="row-price">
-            <span id="label-price" class="info-label"></span>
-            <span class="info-value" id="val-price">N/A</span>
+            <span id="label-price" class="info-label text-bold"></span>
+            <span class="info-value text-bold" id="val-price">N/A</span>
           </div>
           <div class="info-row" id="row-commercial-ref">
-            <span id="label-commercial" class="info-label"></span>
-            <span class="info-value" id="val-commercial-ref">N/A</span>
+            <span id="label-commercial" class="info-label text-bold"></span>
+            <span class="info-value text-bold" id="val-commercial-ref">N/A</span>
           </div>
         </div>
 
@@ -84,7 +84,7 @@
 
         <div class="decoupe-pricing-card">
           <div class="price-line">
-            <span id="label-price-per-sqm" class="price-label"></span>
+            <span id="label-price-per-sqm" class="price-label text-bold"></span>
             <span class="price-value" id="decoupe-sqm-price">0.00 €</span>
           </div>
           <div class="total-price-line">

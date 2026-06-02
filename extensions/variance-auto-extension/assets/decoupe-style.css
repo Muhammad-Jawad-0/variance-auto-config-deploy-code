@@ -110,10 +110,18 @@
   margin-bottom: 10px;
 }
 
+
+/* Make info labels bold */
+.info-label {
+    font-weight: 900 !important;
+    font-size: 12px;
+    /* color: var(--decoupe-text-light); */
+}
+
 .field-label {
   display: block;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 900;
   margin-bottom: 4px;
   color: var(--decoupe-dark);
 }
@@ -199,7 +207,7 @@
 
 .info-label {
   font-weight: 600;
-  color: var(--decoupe-text-light);
+  /* color: var(--decoupe-text-light); */
   font-size: 11px;
 }
 
