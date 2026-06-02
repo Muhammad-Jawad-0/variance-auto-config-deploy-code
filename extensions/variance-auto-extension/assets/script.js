@@ -508,8 +508,6 @@ class VarianceConfigurator {
             kitImageUrl = kit.images[0].url || kit.images[0];
         } else if (kit.image_url) {
             kitImageUrl = kit.image_url;
-        } else if (kit.image) {
-            kitImageUrl = kit.image;
         }
         this.state.selectedKit = {
             id: kit.id || kit.vitre_id,
@@ -532,112 +530,72 @@ class VarianceConfigurator {
         filmSelect.innerHTML = `<option value="" class="rotating">⏳</option>`;
 
         try {
-            const response = await fetch(`${this.apiBase}/films?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&lang=${this.getCurrentLang()}`);
+            // Construct the URL to fetch all films for the selected kit
+            const url = `${this.apiBase}/films?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&lang=${this.getCurrentLang()}`;
+            console.log("Fetching all films from:", url);
+            const response = await fetch(url);
             const data = await response.json();
+
+            // Extract the films array from the API response
             const films = data?.liste?.valeurs || data?.films || data || [];
 
-            // Define your desired films with their patterns and custom labels
-            const desiredFilms = [
-                { customLabel: "Donker 5%", patterns: ['dark solar film 5', 'dark 5%', 'donker 5%'], customId: 'film_donker_5' },
-                { customLabel: "Extreem helder 70%", patterns: ['extreme clear 70 solar film', 'extreem helder 70%', '70%'], customId: 'film_extreem_helder_70' },
-                { customLabel: "Licht helder 35%", patterns: ['light smoke solar film 35', 'licht helder 35%', '35%'], customId: 'film_licht_helder_35' },
-                { customLabel: "Medium 25%", patterns: ['medium solar film 25', 'medium 25%', '25%'], customId: 'film_medium_25' },
-                { customLabel: "Medium plus 15%", patterns: ['medium solar film plus 15', 'medium plus 15%', '15%'], customId: 'film_medium_plus_15' }
-            ];
-
-            const matchedOptions = [];
-
-            for (const desired of desiredFilms) {
-                // Try to find a film from API that matches any pattern
-                const foundFilm = films.find(film => {
-                    const title = (film.titre || film.label || film.name || '').toLowerCase();
-                    return desired.patterns.some(pattern => title.includes(pattern.toLowerCase()));
-                });
-
-                if (foundFilm) {
-                    matchedOptions.push({
-                        realFilmId: foundFilm.id,
-                        customId: desired.customId,
-                        label: desired.customLabel,   // show your custom label
-                        originalTitle: foundFilm.titre
-                    });
-                } else {
-                    // Fallback – still show the option but without a real film ID
-                    // (details will not be fetched from API)
-                    matchedOptions.push({
-                        realFilmId: null,
-                        customId: desired.customId,
-                        label: desired.customLabel,
-                        originalTitle: desired.customLabel
-                    });
-                    console.warn(`Film not found in API: ${desired.customLabel}`);
-                }
+            if (!films.length) {
+                filmSelect.innerHTML = '<option value="">No tint films available</option>';
+                filmSelect.disabled = false;
+                return;
             }
 
             const chooseText = this.translations?.chooseTint || "Choose a tint";
             filmSelect.innerHTML = `<option value="">${chooseText}</option>`;
 
-            for (const opt of matchedOptions) {
+            // Populate dropdown with all films from the API
+            films.forEach(film => {
                 const option = document.createElement('option');
-                // Use realFilmId as the value if available, otherwise fallback to customId
-                option.value = opt.realFilmId || opt.customId;
-                option.textContent = opt.label;
-                option.dataset.realFilmId = opt.realFilmId;
-                option.dataset.customId = opt.customId;
-                option.dataset.label = opt.label;
+                // Use the real film ID as the option's value
+                option.value = film.id;
+                // Display the film's title
+                option.textContent = film.titre || film.label || film.name;
+                // Store the entire film object for later use
+                option.dataset.film = JSON.stringify(film);
                 filmSelect.appendChild(option);
-            }
+            });
 
             filmSelect.disabled = false;
         } catch (error) {
-            console.error('Failed to load films from API, using hardcoded options:', error);
-            // Ultimate fallback – hardcoded options without real film IDs
-            const fallbackFilms = [
-                { customId: "film_donker_5", label: "Donker 5%" },
-                { customId: "film_extreem_helder_70", label: "Extreem helder 70%" },
-                { customId: "film_licht_helder_35", label: "Licht helder 35%" },
-                { customId: "film_medium_25", label: "Medium 25%" },
-                { customId: "film_medium_plus_15", label: "Medium plus 15%" }
-            ];
-            const chooseText = this.translations?.chooseTint || "Choose a tint";
-            filmSelect.innerHTML = `<option value="">${chooseText}</option>`;
-            fallbackFilms.forEach(film => {
-                const option = document.createElement('option');
-                option.value = film.customId;
-                option.textContent = film.label;
-                option.dataset.realFilmId = null;
-                option.dataset.customId = film.customId;
-                option.dataset.label = film.label;
-                filmSelect.appendChild(option);
-            });
+            console.error('Failed to load films:', error);
+            filmSelect.innerHTML = '<option value="">Failed to load tints</option>';
             filmSelect.disabled = false;
         }
     }
 
-async onFilmChange(event) {
-    const selectedOption = event.target.selectedOptions[0];
-    const realFilmId = selectedOption.dataset.realFilmId;
-    const customId = selectedOption.dataset.customId;
-    const filmLabel = selectedOption.dataset.label;
+    async onFilmChange(event) {
+        const selectedOption = event.target.selectedOptions[0];
+        const filmId = selectedOption.value;
 
-    if (!realFilmId && !customId) {
-        this.resetResultToPlaceholder();
-        return;
-    }
+        if (!filmId) {
+            this.resetResultToPlaceholder();
+            return;
+        }
 
-    this.showResultLoader();
-    this.elements.addToCartBtn.disabled = true;
+        this.showResultLoader();
+        this.elements.addToCartBtn.disabled = true;
 
-    if (realFilmId && realFilmId !== 'null') {
-        // ✅ Real film ID exists – fetch details from API
         try {
-            const response = await fetch(`${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${realFilmId}&lang=${this.getCurrentLang()}`);
+            // Use the real film ID to fetch details from your backend
+            const url = `${this.apiBase}/film-detail?declinaison_id=${this.state.selectedDeclinaison.id}&vitre_id=${this.state.selectedKit.id}&film_id=${filmId}&lang=${this.getCurrentLang()}`;
+            console.log("Fetching film details from:", url);
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch film details');
+
             const detail = await response.json();
+            console.log("Film detail response:", detail);
+
+            // Store the fetched film details in the component's state
             this.state.filmDetail = detail;
-            this.state.realFilmId = realFilmId;
-            this.state.filmCustomId = customId;
-            await this.showResult(detail, customId);
+            this.state.selectedFilm = filmId;
+
+            // Display the results using the showResult method
+            await this.showResult(detail);
             this.updateProgress(5, true);
             this.elements.addToCartBtn.disabled = false;
         } catch (error) {
@@ -645,25 +603,7 @@ async onFilmChange(event) {
             this.resetResultToPlaceholder();
             this.elements.addToCartBtn.disabled = true;
         }
-    } else {
-        // Fallback (no real film ID) – use hardcoded data (should not happen normally)
-        console.warn('No real film_id, using fallback data for PDF only');
-        const fallbackData = {
-            reference: filmLabel,
-            rejet_UV: '99.0',
-            protection_solaire: '60.0',
-            transmission_lumiere: '35.0',
-            prix_public: { prix: 0 },
-            titre: filmLabel,
-            custom_id: customId
-        };
-        this.state.filmDetail = fallbackData;
-        this.state.filmCustomId = customId;
-        await this.showResult(fallbackData, customId);
-        this.updateProgress(5, true);
-        this.elements.addToCartBtn.disabled = false;
     }
-}
 
     showResultLoader() {
         if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
@@ -683,69 +623,93 @@ async onFilmChange(event) {
         this.elements.addToCartBtn.disabled = true;
         this.state.filmDetail = null;
     }
+async showResult(detail) {
+    const resultContent = this.elements.resultContent;
+    if (!resultContent) return;
 
-    async showResult(detail, forcedCustomId = null) {
-        const resultContent = this.elements.resultContent;
-        if (!resultContent) return;
+    if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
+    resultContent.classList.remove('hidden');
 
-        if (this.resultPlaceholder) this.resultPlaceholder.classList.add('hidden');
-        resultContent.classList.remove('hidden');
+    const t = this.translations || {};
+    const refLabel = t.ref || "Ref:";
+    const uvLabel = t.uv || "UV";
+    const solarLabel = t.solar || "Solar";
+    const lightLabel = t.light || "Light";
+    const techSheetLabel = t.techSheet || "Technical Sheet";
+    const noPDFLabel = t.noPDF || "No PDF";
 
-        const t = this.translations || {};
-        const refLabel = t.ref || "Ref:";
-        const uvLabel = t.uv || "UV";
-        const solarLabel = t.solar || "Solar";
-        const lightLabel = t.light || "Light";
-        const techSheetLabel = t.techSheet || "Technical Sheet";
-        const noPDFLabel = t.noPDF || "No PDF";
+    const firstValue = detail?.liste?.valeurs?.[0] || detail;
+    const reference = firstValue?.reference || detail?.reference || 'N/A';
+    const uv = firstValue?.rejet_UV || detail?.rejet_UV || '';
+    const solar = firstValue?.protection_solaire || detail?.protection_solaire || '';
+    const light = firstValue?.transmission_lumiere || detail?.transmission_lumiere || '';
+    
+    // Get the API price
+    let apiPrice = 0;
+    const priceObj = firstValue?.prix_public || detail?.prix_public;
+    if (priceObj && priceObj.prix) {
+        let priceStr = String(priceObj.prix);
+        priceStr = priceStr.replace(',', '.');
+        apiPrice = parseFloat(priceStr) || 0;
+    }
+    const currentLang = this.getCurrentLang();
 
-        const firstValue = detail?.liste?.valeurs?.[0] || detail;
-        const reference = detail?.reference || firstValue?.reference || 'N/A';
-        const uv = firstValue?.rejet_UV || detail?.rejet_UV || '';
-        const solar = firstValue?.protection_solaire || detail?.protection_solaire || '';
-        const light = firstValue?.transmission_lumiere || detail?.transmission_lumiere || '';
-        const apiPrice = firstValue?.prix_public?.prix || detail?.prix_public?.prix || 0;
-        const currentLang = this.getCurrentLang();
-
-        let customId = forcedCustomId || this.state.filmCustomId;
-        if (!customId && detail.custom_id) customId = detail.custom_id;
-        if (!customId && detail.titre) {
-            const titleLower = detail.titre.toLowerCase();
-            if (titleLower.includes('donker') || titleLower.includes('dark')) customId = 'film_donker_5';
-            else if (titleLower.includes('extreem') || titleLower.includes('70')) customId = 'film_extreem_helder_70';
-            else if (titleLower.includes('licht') || titleLower.includes('35')) customId = 'film_licht_helder_35';
-            else if (titleLower.includes('medium') && titleLower.includes('25')) customId = 'film_medium_25';
-            else if (titleLower.includes('medium plus') || titleLower.includes('15')) customId = 'film_medium_plus_15';
+    // ✅ Map API film IDs to your custom PDF URLs
+    const customPdfMap = {
+        '55': {  // Extreem helder 70%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Extreem_helder_70.pdf?v=1780323516",
+            name: "Extreem helder 70% Technical Sheet"
+        },
+        '1': {   // Ultra helder 50%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Ultra_helder_50.pdf?v=1780408249",
+            name: "Ultra helder 50% Technical Sheet"
+        },
+        '2': {   // Licht helder 35%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Licht_helder_35.pdf?v=1780323580",
+            name: "Licht helder 35% Technical Sheet"
+        },
+        '3': {   // Medium 25%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_25.pdf?v=1780323606",
+            name: "Medium 25% Technical Sheet"
+        },
+        '4': {   // Medium plus 15%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_plus_15.pdf?v=1780323640",
+            name: "Medium plus 15% Technical Sheet"
+        },
+        '5': {   // Donker 5%
+            url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Donker_5.pdf?v=1780323478",
+            name: "Donker 5% Technical Sheet"
         }
+    };
 
-        let pdfUrl = null;
-        let finalTechSheetLabel = techSheetLabel;
+    // Get the selected film ID from state
+    const filmId = this.state.selectedFilm;
+    let pdfUrl = null;
+    let finalTechSheetLabel = techSheetLabel;
 
-        if (customId) {
-            try {
-                const mappingRes = await fetch(`${this.apiBase}/pdf-mapping?custom_id=${customId}&lang=${currentLang}`);
-                const mappingData = await mappingRes.json();
-                if (mappingData.success && mappingData.pdfUrl) {
-                    pdfUrl = mappingData.pdfUrl;
-                    finalTechSheetLabel = mappingData.pdfName || techSheetLabel;
-                }
-            } catch (err) {
-                console.warn("Failed to fetch PDF mapping:", err);
-            }
+    // ✅ Always use custom PDF if mapping exists, otherwise fallback to API
+    if (filmId && customPdfMap[filmId]) {
+        pdfUrl = customPdfMap[filmId].url;
+        finalTechSheetLabel = customPdfMap[filmId].name;
+        console.log(`Using custom PDF for film ID ${filmId}: ${pdfUrl}`);
+    } else {
+        // Fallback (if any film ID not in map) – use API PDF
+        const apiPdfUrl = detail?.ficheTechnique?.url || firstValue?.ficheTechnique?.url;
+        if (apiPdfUrl) {
+            pdfUrl = apiPdfUrl;
+            console.log(`No custom PDF for ID ${filmId}, using API PDF`);
+        } else {
+            console.warn(`No PDF available for film ID ${filmId}`);
         }
+    }
 
-        let kitImageHtml = '';
-        if (this.state.selectedKit && this.state.selectedKit.imageUrl) {
-            kitImageHtml = `<div class="kit-thumbnail" style="display: inline-block; margin-left: 10px;"><img src="${this.state.selectedKit.imageUrl}" alt="Kit" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; vertical-align: middle;"></div>`;
-        } else if (this.state.selectedKit && this.state.selectedKit.originalData) {
-            const kitData = this.state.selectedKit.originalData;
-            const imgUrl = kitData?.images?.[0]?.url || kitData?.image_url || '';
-            if (imgUrl) {
-                kitImageHtml = `<div class="kit-thumbnail" style="display: inline-block; margin-left: 10px;"><img src="${imgUrl}" alt="Kit" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; vertical-align: middle;"></div>`;
-            }
-        }
+    // Kit image (small thumbnail)
+    let kitImageHtml = '';
+    if (this.state.selectedKit && this.state.selectedKit.imageUrl) {
+        kitImageHtml = `<div class="kit-thumbnail" style="display: inline-block; margin-left: 10px;"><img src="${this.state.selectedKit.imageUrl}" alt="Kit" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; vertical-align: middle;"></div>`;
+    }
 
-        resultContent.innerHTML = `
+    resultContent.innerHTML = `
         <div class="result-compact">
             <div class="compact-section">
                 <div class="row">
@@ -763,10 +727,10 @@ async onFilmChange(event) {
                 ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="pdf-link">📄 ${finalTechSheetLabel}</a>` : `<span class="no-pdf">${noPDFLabel}</span>`}
             </div>
             <div class="compact-price">
-                <strong>€${(parseFloat(apiPrice || 0) + parseFloat(window.VarianceConfig.productPrice || 0)).toLocaleString(currentLang === 'nl' ? 'nl-NL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                <strong>€${apiPrice.toLocaleString(currentLang === 'nl' ? 'nl-NL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
         </div>`;
-    }
+}
 
     updateProgress(step, isComplete = false) {
         const steps = document.querySelectorAll('.step');
@@ -778,94 +742,141 @@ async onFilmChange(event) {
         });
     }
 
-    async addToCart() {
-        if (!this.state.filmDetail) return;
+async addToCart() {
+    if (!this.state.filmDetail) return;
 
-        const filmValue = this.state.filmDetail?.liste?.valeurs?.[0] || this.state.filmDetail;
-        const apiPrice = parseFloat(filmValue?.prix_public?.prix || 0);
-        const basePrice = parseFloat(window.VarianceConfig?.productPrice || 0);
-        const totalPrice = apiPrice + basePrice;
+    const filmValue = this.state.filmDetail?.liste?.valeurs?.[0] || this.state.filmDetail;
 
-        const configData = {
-            marque_id: this.state.selectedBrand?.id,
-            modele_id: this.state.selectedModel?.id,
-            declinaison_id: this.state.selectedDeclinaison?.id,
-            vitre_id: this.state.selectedKit?.id,
-            film_id: this.state.selectedFilm,
-            brandName: this.state.selectedBrand?.name || '',
-            modelName: this.state.selectedModel?.name || '',
-            declinaisonLabel: this.state.selectedDeclinaison?.label || '',
-            kitLabel: this.state.selectedKit?.label || '',
-            filmName: filmValue?.titre || filmValue?.label || '',
-            totalPrice: totalPrice,
-            basePrice: basePrice,
-            filmPrice: apiPrice,
-            reference: filmValue?.reference || 'N/A',
-            uv: filmValue?.rejet_UV || '',
-            solar: filmValue?.protection_solaire || '',
-            light: filmValue?.transmission_lumiere || '',
-            filmImages: filmValue?.images?.map(img => img.url || img) || [],
-            modelImageUrl: this.state.selectedModel?.image || '',
-            brandImageUrl: this.state.selectedBrand?.image || '',
-            technicalSheetUrl: '',
-            technicalSheetName: 'Technical Sheet',
-        };
-
-        const cartProperties = {
-            'Brand': configData.brandName,
-            'Model': configData.modelName,
-            'Year/Trim': configData.declinaisonLabel,
-            'Window Kit': configData.kitLabel,
-            'Tint Film': configData.filmName,
-            'Reference': configData.reference,
-            'UV Protection': configData.uv ? `${configData.uv}%` : '',
-            'Solar Protection': configData.solar ? `${configData.solar}%` : '',
-            'Light Transmission': configData.light ? `${configData.light}%` : '',
-            'Configuration ID': `${configData.marque_id}-${configData.modele_id}-${configData.declinaison_id}-${configData.vitre_id}-${configData.film_id}`,
-        };
-        Object.keys(cartProperties).forEach(k => { if (!cartProperties[k]) delete cartProperties[k]; });
-
-        const btn = this.elements.addToCartBtn;
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '⏳ Adding...';
-        btn.disabled = true;
-
-        const shopDomain = window.Shopify?.shop || window.location.hostname;
-        const backendUrl = `${this.apiBase}/cart/add-configured-item?shop=${encodeURIComponent(shopDomain)}`;
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000);
-            const backendRes = await fetch(backendUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(configData),
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-            if (!backendRes.ok) throw new Error(`Backend error: ${backendRes.status}`);
-            const backendData = await backendRes.json();
-            if (!backendData.success || !backendData.variantId) throw new Error(backendData.error || 'Failed to get variant');
-            let variantId = backendData.variantId;
-            if (typeof variantId === 'string' && variantId.includes('gid://')) variantId = variantId.split('/').pop();
-            variantId = parseInt(variantId);
-            const formData = new FormData();
-            formData.append('id', variantId);
-            formData.append('quantity', '1');
-            Object.keys(cartProperties).forEach(key => { formData.append(`properties[${key}]`, cartProperties[key]); });
-            const cartAddRes = await fetch('/cart/add.js', { method: 'POST', body: formData });
-            if (!cartAddRes.ok) {
-                const cartError = await cartAddRes.json();
-                throw new Error(cartError.description || 'Cart add failed');
-            }
-            window.location.href = '/cart';
-        } catch (error) {
-            console.error('Add to cart error:', error);
-            alert('Could not add to cart. ' + error.message);
-            btn.innerHTML = originalHTML;
-            btn.disabled = false;
-        }
+    // ✅ Extract price correctly (handle comma decimal)
+    let apiPrice = 0;
+    const priceObj = filmValue?.prix_public;
+    if (priceObj && priceObj.prix) {
+        let priceStr = String(priceObj.prix);
+        priceStr = priceStr.replace(',', '.');
+        apiPrice = parseFloat(priceStr) || 0;
     }
+    const totalPrice = apiPrice;
+
+    console.log("=== ADD TO CART DEBUG ===");
+    console.log("API Price:", apiPrice);
+    console.log("Total Price:", totalPrice);
+    console.log("selectedFilm ID:", this.state.selectedFilm);
+
+    // ✅ Map film IDs to your custom PDF URLs (same as showResult)
+    const customPdfMap = {
+        '55': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Extreem_helder_70.pdf?v=1780323516",
+        '1': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Ultra_helder_50.pdf?v=1780408249",
+        '2': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Licht_helder_35.pdf?v=1780323580",
+        '3': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_25.pdf?v=1780323606",
+        '4': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_plus_15.pdf?v=1780323640",
+        '5': "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Donker_5.pdf?v=1780323478"
+    };
+
+    // ✅ Get custom PDF URL based on selected film ID
+    const filmId = this.state.selectedFilm;
+    let technicalSheetUrl = '';
+    let technicalSheetName = 'Technical Sheet';
+
+    if (filmId && customPdfMap[filmId]) {
+        technicalSheetUrl = customPdfMap[filmId];
+        // Set proper name based on film ID
+        const pdfNames = {
+            '55': 'Extreem helder 70% Technical Sheet',
+            '1': 'Ultra helder 50% Technical Sheet',
+            '2': 'Licht helder 35% Technical Sheet',
+            '3': 'Medium 25% Technical Sheet',
+            '4': 'Medium plus 15% Technical Sheet',
+            '5': 'Donker 5% Technical Sheet'
+        };
+        technicalSheetName = pdfNames[filmId] || 'Technical Sheet';
+        console.log(`Using custom PDF for cart: ${technicalSheetUrl}`);
+    } else {
+        // Fallback to API PDF if available
+        technicalSheetUrl = filmValue?.ficheTechnique?.url || '';
+        console.log(`Using API PDF for cart: ${technicalSheetUrl}`);
+    }
+
+    const configData = {
+        marque_id: this.state.selectedBrand?.id,
+        modele_id: this.state.selectedModel?.id,
+        declinaison_id: this.state.selectedDeclinaison?.id,
+        vitre_id: this.state.selectedKit?.id,
+        film_id: this.state.selectedFilm,
+        brandName: this.state.selectedBrand?.name || '',
+        modelName: this.state.selectedModel?.name || '',
+        declinaisonLabel: this.state.selectedDeclinaison?.label || '',
+        kitLabel: this.state.selectedKit?.label || '',
+        filmName: filmValue?.titre || filmValue?.label || '',
+        totalPrice: totalPrice,
+        basePrice: 0,
+        filmPrice: apiPrice,
+        reference: filmValue?.reference || 'N/A',
+        uv: filmValue?.rejet_UV || '',
+        solar: filmValue?.protection_solaire || '',
+        light: filmValue?.transmission_lumiere || '',
+        filmImages: filmValue?.images?.map(img => img.url || img) || [],
+        modelImageUrl: this.state.selectedModel?.image || '',
+        brandImageUrl: this.state.selectedBrand?.image || '',
+        technicalSheetUrl: technicalSheetUrl,  // ✅ Custom PDF URL
+        technicalSheetName: technicalSheetName,
+    };
+
+    const cartProperties = {
+        'Brand': configData.brandName,
+        'Model': configData.modelName,
+        'Year/Trim': configData.declinaisonLabel,
+        'Window Kit': configData.kitLabel,
+        'Tint Film': configData.filmName,
+        'Reference': configData.reference,
+        'UV Protection': configData.uv ? `${configData.uv}%` : '',
+        'Solar Protection': configData.solar ? `${configData.solar}%` : '',
+        'Light Transmission': configData.light ? `${configData.light}%` : '',
+        'Technical Sheet': technicalSheetUrl,  // ✅ Custom PDF URL in cart properties
+        'Configuration ID': `${configData.marque_id}-${configData.modele_id}-${configData.declinaison_id}-${configData.vitre_id}-${configData.film_id}`,
+    };
+    Object.keys(cartProperties).forEach(k => { if (!cartProperties[k]) delete cartProperties[k]; });
+
+    const btn = this.elements.addToCartBtn;
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '⏳ Adding...';
+    btn.disabled = true;
+
+    const shopDomain = window.Shopify?.shop || window.location.hostname;
+    const backendUrl = `${this.apiBase}/cart/add-configured-item?shop=${encodeURIComponent(shopDomain)}`;
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        const backendRes = await fetch(backendUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(configData),
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!backendRes.ok) throw new Error(`Backend error: ${backendRes.status}`);
+        const backendData = await backendRes.json();
+        if (!backendData.success || !backendData.variantId) throw new Error(backendData.error || 'Failed to get variant');
+        let variantId = backendData.variantId;
+        if (typeof variantId === 'string' && variantId.includes('gid://')) variantId = variantId.split('/').pop();
+        variantId = parseInt(variantId);
+        const formData = new FormData();
+        formData.append('id', variantId);
+        formData.append('quantity', '1');
+        Object.keys(cartProperties).forEach(key => { formData.append(`properties[${key}]`, cartProperties[key]); });
+        const cartAddRes = await fetch('/cart/add.js', { method: 'POST', body: formData });
+        if (!cartAddRes.ok) {
+            const cartError = await cartAddRes.json();
+            throw new Error(cartError.description || 'Cart add failed');
+        }
+        window.location.href = '/cart';
+    } catch (error) {
+        console.error('Add to cart error:', error);
+        alert('Could not add to cart. ' + error.message);
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+}
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

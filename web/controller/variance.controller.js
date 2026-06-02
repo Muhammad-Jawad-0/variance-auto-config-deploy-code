@@ -147,7 +147,8 @@ export const getPdfMapping = async (req, res) => {
             "film_medium_plus_15": {
                 url: "https://cdn.shopify.com/s/files/1/1001/4556/1890/files/Medium_plus_15.pdf?v=1780323640",
                 name: "Medium plus 15% Technical Sheet"
-            }
+            },
+            
         };
 
         let pdfInfo = null;
